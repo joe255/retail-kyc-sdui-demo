@@ -14,6 +14,7 @@ const supportedTypes = new Set([
   'transaction_profile',
   'verification',
   'summary',
+  'structured_address',
 ])
 
 describe('synthetic SDUI portfolio', () => {
@@ -42,6 +43,27 @@ describe('synthetic SDUI portfolio', () => {
         for (const component of screen.components) {
           expect(supportedTypes.has(component.type)).toBe(true)
         }
+      }
+    }
+  })
+
+  it('never allows a requested upload or acceptance to be silently skipped', () => {
+    const components = customers.flatMap((customer) => customer.screens.flatMap((screen) => screen.components))
+    const uploads = components.filter((component) => component.type === 'upload')
+    const declarations = components.filter((component) => component.type === 'declaration')
+    expect(uploads.length).toBeGreaterThan(0)
+    expect(uploads.every((component) => component.required)).toBe(true)
+    expect(declarations.every((component) => component.required)).toBe(true)
+  })
+
+  it('gives every actionable screen an explicit required decision or input', () => {
+    const actionable = customers.filter((customer) => customer.status === 'action_required')
+    for (const customer of actionable) {
+      for (const screen of customer.screens) {
+        expect(
+          screen.components.some((component) => component.required),
+          `${customer.id}/${screen.id} has no required component`,
+        ).toBe(true)
       }
     }
   })

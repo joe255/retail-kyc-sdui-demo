@@ -53,7 +53,7 @@ export interface InputComponent extends BaseComponent {
   label: string
   value?: string
   placeholder?: string
-  inputType?: 'text' | 'date' | 'number'
+  inputType?: 'text' | 'date' | 'number' | 'email' | 'tel'
   prefix?: string
   suffix?: string
   helper?: string
@@ -90,6 +90,9 @@ export interface UploadComponent extends BaseComponent {
   description: string
   accepted: string
   examples?: string[]
+  instructions?: string[]
+  documentDateRule?: string
+  maxSizeMb?: number
 }
 
 export interface DeclarationComponent extends BaseComponent {
@@ -123,6 +126,7 @@ export interface TransactionProfileComponent extends BaseComponent {
 
 export interface VerificationComponent extends BaseComponent {
   type: 'verification'
+  fieldId: string
   title: string
   status: 'failed' | 'pending' | 'ready'
   attempts: Array<{ label: string; timestamp: string; result: string }>
@@ -134,6 +138,28 @@ export interface SummaryComponent extends BaseComponent {
   title: string
   items: Array<{ label: string; value: string; state?: 'ok' | 'changed' | 'pending' }>
 }
+
+export interface StructuredAddressValue {
+  country: string
+  street: string
+  houseNumber: string
+  postcode: string
+  city: string
+  region?: string
+}
+
+export interface StructuredAddressComponent extends BaseComponent {
+  type: 'structured_address'
+  fieldId: string
+  title: string
+  description?: string
+  value?: StructuredAddressValue
+  countryOptions: Array<{ label: string; value: string }>
+  requireRegion?: boolean
+  proofHint?: string
+}
+
+export type ProfileEditComponent = InputComponent | SelectComponent | ChoiceComponent | StructuredAddressComponent
 
 export interface ProfileOverviewComponent extends BaseComponent {
   type: 'profile_overview'
@@ -147,6 +173,7 @@ export interface ProfileOverviewComponent extends BaseComponent {
       value: string
       verified?: boolean
       source?: string
+      editComponent: ProfileEditComponent
     }>
   }>
 }
@@ -164,6 +191,7 @@ export type SduiComponent =
   | TransactionProfileComponent
   | VerificationComponent
   | SummaryComponent
+  | StructuredAddressComponent
   | ProfileOverviewComponent
 
 export interface SduiScreen {
@@ -196,7 +224,7 @@ export interface CustomerScenario {
   screens: SduiScreen[]
 }
 
-export type ResponseValue = string | boolean | File | null
+export type ResponseValue = string | boolean | File | StructuredAddressValue | null
 export type ResponseState = Record<string, ResponseValue>
 
 export type CustomerSummary = Omit<CustomerScenario, 'screens'> & {

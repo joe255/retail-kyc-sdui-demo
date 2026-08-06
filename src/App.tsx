@@ -188,7 +188,7 @@ function App() {
 
   const changeResponse = (fieldId: string, value: ResponseValue) => {
     setResponses((current) => ({ ...current, [fieldId]: value }))
-    setValidationFields((current) => current.filter((candidate) => candidate !== fieldId))
+    setValidationFields([])
   }
 
   const advance = async () => {
@@ -273,7 +273,7 @@ function App() {
               </div>
               <div className="space-y-4 bg-slate-50/45 p-4 sm:p-7 lg:p-8">
                 {validationFields.length > 0 && <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-900"><CircleAlert className="mt-0.5 shrink-0 text-rose-600" size={18} /><div><p className="text-sm font-bold">Complete the required information</p><p className="mt-1 text-xs leading-5 text-rose-700">The fields revealed by your answers must be completed before this screen can be submitted.</p></div></div>}
-                {screen.components.map((component) => <SduiRenderer key={component.id} component={component} responses={responses} onChange={changeResponse} />)}
+                {screen.components.map((component) => <SduiRenderer key={component.id} component={component} responses={responses} onChange={changeResponse} invalidFields={validationFields} />)}
               </div>
               <footer className="flex items-center justify-between gap-4 border-t border-slate-100 bg-white p-5 sm:px-8 sm:py-6"><button type="button" disabled={currentScreen === 0} onClick={() => setCurrentScreen((current) => Math.max(0, current - 1))} className="inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /> Back</button><button type="button" onClick={advance} disabled={submitting} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-60">{submitting ? <RefreshCw className="animate-spin" size={17} /> : currentScreen === journey.customer.screens.length - 1 ? <Check size={17} strokeWidth={3} /> : <ArrowRight size={17} />}{submitting ? 'Sending…' : screen.primaryAction}</button></footer>
             </section>

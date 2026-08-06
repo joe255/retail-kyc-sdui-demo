@@ -9,13 +9,14 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 ## What the demo shows
 
 - 16 synthetic retail customers across action-required, under-review, complete and restricted states.
-- 13 reusable SDUI component types including verified fields, evidence upload, declarations, source conflict resolution, party relationships, customer-visible profile data and transaction-profile review.
+- 14 reusable SDUI component types including verified fields, evidence upload, declarations, structured addresses, source conflict resolution, party relationships, editable customer-visible profile data and transaction-profile review.
 - Group-wide identity facts separated from booking-entity customer decisions.
 - Dynamic multi-screen journeys, backend submissions and next-screen receipts.
 - An explicit Reviewer/Customer view switch for presenting both sides of the same journey.
 - A live JSON drawer showing the exact payload rendered on screen.
 - Backend-defined conditional visibility and required-field validation; selecting “No, I have moved” reveals a structured new-address request.
-- A collapsed “Other information we have about you” component on every first screen, allowing customers to inspect data outside the active request.
+- A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor and includes the change in the submission.
+- Inline, component-specific validation mirrored by backend enforcement. Mandatory evidence uploads and declarations cannot be skipped.
 - Responsive layouts suitable for desktop and mobile demonstrations.
 
 ## Run it
@@ -88,11 +89,23 @@ Select the customer scenario in Reviewer view, then switch to Customer view to d
 | `POST` | `/api/v1/customers/:id/submissions` | Accept a screen response and return the next screen |
 | `POST` | `/api/v1/demo/reset` | Clear in-memory presentation submissions |
 
+## Validation behaviour
+
+Validation is part of the SDUI contract rather than being invented by individual pages:
+
+- Hidden conditional components are not required until their condition becomes true.
+- Every visible required component is highlighted inline after an attempted submission.
+- Structured addresses require country, street, house number, postcode and city as one atomic value.
+- Requested evidence uploads require a file and enforce the server-defined size limit.
+- Customer declarations, relationship mandates and fallback-method choices cannot be skipped.
+- Editing an existing profile fact is optional, but once an edit is started the replacement value must pass that field’s SDUI validation.
+- The backend repeats the same checks and returns `422 missing_required_fields` rather than trusting the browser.
+
 An abbreviated journey response looks like this:
 
 ```json
 {
-  "contractVersion": "retail-kyc-sdui/1.0",
+  "contractVersion": "retail-kyc-sdui/1.1",
   "syntheticData": true,
   "customer": {
     "id": "amira-haddad",

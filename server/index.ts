@@ -14,7 +14,7 @@ import type {
 
 const app = express()
 const port = Number(process.env.PORT ?? 8787)
-const contractVersion = 'retail-kyc-sdui/1.0'
+const contractVersion = 'retail-kyc-sdui/1.1'
 
 type StoredSubmission = {
   receipt: SubmissionReceipt
@@ -36,7 +36,8 @@ const componentCatalog: ComponentCatalogEntry[] = [
   { type: 'transaction_profile', label: 'Expected activity', purpose: 'Compares observed activity with the relationship expectation.', dataModelTargets: ['BUSINESS_RELATIONSHIP', 'RISK_RATING'] },
   { type: 'verification', label: 'Verification fallback', purpose: 'Shows failed attempts and offers policy-approved alternatives.', dataModelTargets: ['IDENTITY_CHECK', 'CDD_REQUIREMENT'] },
   { type: 'summary', label: 'Review summary', purpose: 'Summarises accepted changes before submission.', dataModelTargets: ['DATA_SUBMISSION', 'CDD_CASE'] },
-  { type: 'profile_overview', label: 'Other information on file', purpose: 'Lets the customer inspect data that is not part of the current request.', dataModelTargets: ['PARTY', 'PERSON', 'CUSTOMER', 'BUSINESS_RELATIONSHIP'] },
+  { type: 'structured_address', label: 'Structured address', purpose: 'Collects all required address parts as one validated value.', dataModelTargets: ['ADDRESS', 'DATA_ASSERTION'] },
+  { type: 'profile_overview', label: 'Editable information on file', purpose: 'Lets the customer inspect and correct facts outside the active request using nested SDUI editors.', dataModelTargets: ['PARTY', 'PERSON', 'CUSTOMER', 'BUSINESS_RELATIONSHIP'] },
 ]
 
 const nationalityByCustomer: Record<string, string> = {
@@ -48,36 +49,53 @@ const nationalityByCustomer: Record<string, string> = {
 
 function customerVisibleProfile(customer: (typeof customers)[number]) {
   const market = customer.bookingEntity.slice(-2)
+  const countryCode = market === 'AT' ? 'AT' : market === 'DE' ? 'DE' : 'NL'
+  const countryName = market === 'AT' ? 'Austria' : market === 'DE' ? 'Germany' : 'Netherlands'
   const emailName = customer.id.replace('-', '.')
+  const birthYear = 2026 - customer.age
+  const countryOptions = [
+    { label: 'Austria', value: 'AT' }, { label: 'Germany', value: 'DE' }, { label: 'Netherlands', value: 'NL' },
+    { label: 'Croatia', value: 'HR' }, { label: 'Italy', value: 'IT' }, { label: 'Spain', value: 'ES' },
+  ]
+  const address = market === 'AT'
+    ? { country: 'AT', street: 'Währinger Straße', houseNumber: '42/7', postcode: '1090', city: 'Vienna', region: 'Vienna' }
+    : market === 'DE'
+      ? { country: 'DE', street: 'Alsterufer', houseNumber: '17', postcode: '20354', city: 'Hamburg', region: 'Hamburg' }
+      : { country: 'NL', street: 'Prinsengracht', houseNumber: '248', postcode: '1016 HG', city: 'Amsterdam', region: 'North Holland' }
   return {
     id: `${customer.id}-profile-overview`,
     type: 'profile_overview' as const,
     title: 'Other information we have about you',
-    description: 'These details are not part of the current request. You can still inspect them and contact us if something is incorrect.',
+    description: 'These details are not part of the current request. Select Edit next to any fact to open its appropriate SDUI editor.',
     collapsedByDefault: true,
     sections: [
       {
         title: 'Personal information',
         fields: [
-          { label: 'Legal name', value: customer.name, verified: true, source: 'Group Party Master' },
-          { label: 'Age', value: `${customer.age}`, source: 'Verified date of birth' },
-          { label: 'Nationality', value: nationalityByCustomer[customer.id] ?? 'On file', verified: true, source: 'Identity evidence' },
+          { label: 'Legal name', value: customer.name, verified: true, source: 'Group Party Master', editComponent: { id: `${customer.id}-edit-name`, type: 'input' as const, fieldId: 'profile_legal_name', label: 'Legal name', value: customer.name, placeholder: 'Name exactly as shown on your identity document', helper: 'A name change may trigger a request for supporting evidence.', required: true } },
+          { label: 'Date of birth', value: `14 March ${birthYear}`, source: 'Verified identity document', editComponent: { id: `${customer.id}-edit-birth`, type: 'input' as const, fieldId: 'profile_birth_date', label: 'Date of birth', value: `${birthYear}-03-14`, inputType: 'date' as const, helper: 'Changing a verified birth date creates an identity-review case.', required: true } },
+          { label: 'Nationality', value: nationalityByCustomer[customer.id] ?? 'On file', verified: true, source: 'Identity evidence', editComponent: { id: `${customer.id}-edit-nationality`, type: 'input' as const, fieldId: 'profile_nationality', label: 'Nationality or nationalities', value: nationalityByCustomer[customer.id] ?? '', placeholder: 'List every nationality you hold', helper: 'Separate multiple nationalities with commas.', required: true } },
         ],
       },
       {
-        title: 'Contact and tax',
+        title: 'Contact and residence',
         fields: [
-          { label: 'Email', value: `${emailName}@example.demo`, source: 'Confirmed by customer' },
-          { label: 'Mobile number', value: `+${market === 'AT' ? '43' : market === 'DE' ? '49' : '31'} ••• ••• 42`, source: 'Confirmed by customer' },
-          { label: 'Tax residency', value: market === 'AT' ? 'Austria' : market === 'DE' ? 'Germany' : 'Netherlands', source: 'Customer declaration' },
+          { label: 'Email', value: `${emailName}@example.demo`, source: 'Confirmed by customer', editComponent: { id: `${customer.id}-edit-email`, type: 'input' as const, fieldId: 'profile_email', label: 'Email address', value: `${emailName}@example.demo`, inputType: 'email' as const, placeholder: 'name@example.com', required: true } },
+          { label: 'Mobile number', value: `+${market === 'AT' ? '43' : market === 'DE' ? '49' : '31'} 660 123 42`, source: 'Confirmed by customer', editComponent: { id: `${customer.id}-edit-mobile`, type: 'input' as const, fieldId: 'profile_mobile', label: 'Mobile number', value: `+${market === 'AT' ? '43' : market === 'DE' ? '49' : '31'} 660 123 42`, inputType: 'tel' as const, placeholder: 'Include the country calling code', required: true } },
+          { label: 'Residential address', value: `${address.street} ${address.houseNumber}, ${address.postcode} ${address.city}`, source: 'Confirmed by customer', editComponent: { id: `${customer.id}-edit-address`, type: 'structured_address' as const, fieldId: 'profile_residential_address', title: 'Residential address', description: 'Use the address where you usually live.', value: address, countryOptions, required: true } },
         ],
       },
       {
-        title: 'Banking relationship',
+        title: 'Tax and financial profile',
         fields: [
-          { label: 'Booking entity', value: customer.bookingEntity },
-          { label: 'Product', value: customer.product },
-          { label: 'Customer since', value: customer.relationshipSince },
+          { label: 'Tax residency', value: countryName, source: 'Customer declaration', editComponent: { id: `${customer.id}-edit-tax-country`, type: 'select' as const, fieldId: 'profile_tax_residency', label: 'Primary tax residency', value: countryCode, placeholder: 'Choose a country', options: countryOptions, helper: 'Additional tax residencies are collected in the full tax journey.', required: true } },
+          { label: 'Occupation', value: customer.id === 'mia-fischer' ? 'Data analyst' : 'Employed professional', source: 'Last customer review', editComponent: { id: `${customer.id}-edit-occupation`, type: 'input' as const, fieldId: 'profile_occupation', label: 'Occupation', value: customer.id === 'mia-fischer' ? 'Data analyst' : 'Employed professional', placeholder: 'Your current job or profession', required: true } },
+          { label: 'Primary source of income', value: 'Employment income', source: 'Relationship profile', editComponent: { id: `${customer.id}-edit-income`, type: 'choice' as const, fieldId: 'profile_income_source', label: 'Primary source of income', value: 'employment', layout: 'grid' as const, options: [
+            { value: 'employment', label: 'Employment income', description: 'Salary, bonus or pension' },
+            { value: 'business', label: 'Business income', description: 'Self-employment, dividends or company proceeds' },
+            { value: 'investment', label: 'Investment income', description: 'Rent, interest or investment returns' },
+            { value: 'family', label: 'Family support or inheritance', description: 'Support, gift or inherited assets' },
+          ], required: true } },
         ],
       },
     ],
@@ -170,7 +188,10 @@ app.post('/api/v1/customers/:customerId/submissions', (request, response) => {
     return
   }
 
-  const missingFields = missingRequiredFields(customer.screens[screenIndex], values as Record<string, string | boolean | null>)
+  const submissionScreen = screenIndex === 0
+    ? { ...customer.screens[screenIndex], components: [...customer.screens[screenIndex].components, customerVisibleProfile(customer)] }
+    : customer.screens[screenIndex]
+  const missingFields = missingRequiredFields(submissionScreen, values as Record<string, string | boolean | null>)
   if (missingFields.length) {
     response.status(422).json({
       error: 'missing_required_fields',
