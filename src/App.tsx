@@ -10,7 +10,6 @@ import {
   Clock3,
   Code2,
   Eye,
-  Filter,
   LayoutPanelLeft,
   Menu,
   RefreshCw,
@@ -24,6 +23,7 @@ import {
 import { getCustomers, getJourney, resetDemo, submitScreen } from './lib/api'
 import { customerProgress, statusLabel } from './lib/status'
 import { missingRequiredFields } from './lib/conditions'
+import { viewModePolicy, type ViewMode } from './lib/viewMode'
 import { SduiRenderer } from './sdui/renderer'
 import type {
   CustomerListPayload,
@@ -128,6 +128,15 @@ function LoadingScreen() {
   return <div className="grid min-h-screen place-items-center bg-slate-100"><div className="flex flex-col items-center"><div className="grid size-14 place-items-center rounded-3xl bg-slate-950 text-emerald-300 shadow-xl"><RefreshCw className="animate-spin" size={22} /></div><p className="mt-4 text-sm font-bold text-slate-900">Loading SDUI contract…</p><p className="mt-1 text-xs text-slate-500">Fetching scenarios from the demo backend</p></div></div>
 }
 
+function ViewModeSwitch({ mode, onChange }: { mode: ViewMode; onChange: (mode: ViewMode) => void }) {
+  return (
+    <div aria-label="Demo view" className="flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+      <button type="button" aria-pressed={mode === 'reviewer'} onClick={() => onChange('reviewer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'reviewer' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><UserRoundCheck size={15} /><span className="hidden sm:inline">Reviewer</span></button>
+      <button type="button" aria-pressed={mode === 'customer'} onClick={() => onChange('customer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'customer' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Eye size={15} /><span className="hidden sm:inline">Customer</span></button>
+    </div>
+  )
+}
+
 function App() {
   const [list, setList] = useState<CustomerListPayload | null>(null)
   const [journey, setJourney] = useState<JourneyPayload | null>(null)
@@ -138,7 +147,7 @@ function App() {
   const [query, setQuery] = useState('')
   const [payloadOpen, setPayloadOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [presenterMode, setPresenterMode] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('reviewer')
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [validationFields, setValidationFields] = useState<string[]>([])
@@ -170,6 +179,7 @@ function App() {
   const screen = journey?.customer.screens[currentScreen]
   const progress = journey ? customerProgress(journey.customer, currentScreen) : 0
   const selectedSummary = useMemo(() => list?.customers.find((customer) => customer.id === selectedId), [list, selectedId])
+  const viewPolicy = viewModePolicy[viewMode]
 
   const selectCustomer = (id: string) => {
     setSelectedId(id)
@@ -214,6 +224,12 @@ function App() {
     setToast('Demo state reset')
   }
 
+  const switchViewMode = (mode: ViewMode) => {
+    setViewMode(mode)
+    setPayloadOpen(false)
+    setSidebarOpen(false)
+  }
+
   if (!list || !journey || !screen) {
     if (error) return <div className="grid min-h-screen place-items-center bg-slate-100 p-8"><div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><CircleAlert className="mx-auto text-rose-600" size={32} /><h1 className="mt-4 text-xl font-black">The demo API is unavailable</h1><p className="mt-2 text-sm leading-6 text-slate-500">Run <code className="rounded bg-slate-100 px-1.5 py-0.5">npm run dev</code> to start both the backend and Vite.</p></div></div>
     return <LoadingScreen />
@@ -221,36 +237,35 @@ function App() {
 
   return (
     <div className="flex min-h-screen bg-[#f4f6f5] text-slate-950">
-      {!presenterMode && <Sidebar payload={list} selectedId={selectedId} filter={filter} query={query} onFilter={setFilter} onQuery={setQuery} onSelect={selectCustomer} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
+      {viewPolicy.showPortfolio && <Sidebar payload={list} selectedId={selectedId} filter={filter} query={query} onFilter={setFilter} onQuery={setQuery} onSelect={selectCustomer} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
       <main className="min-w-0 flex-1">
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200/80 bg-[#f4f6f5]/90 px-4 backdrop-blur-xl sm:px-6 xl:px-10">
           <div className="flex min-w-0 items-center gap-3">
-            {!presenterMode && <button type="button" onClick={() => setSidebarOpen(true)} className="grid size-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden"><Menu size={19} /></button>}
-            {presenterMode && <div className="hidden items-center gap-3 sm:flex"><div className="grid size-9 place-items-center rounded-xl bg-slate-950 text-emerald-300"><Sparkles size={17} /></div><span className="text-sm font-black">Northstar KYC</span></div>}
+            {viewPolicy.showPortfolio && <button type="button" onClick={() => setSidebarOpen(true)} className="grid size-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden"><Menu size={19} /></button>}
+            {!viewPolicy.showPortfolio && <div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-slate-950 text-emerald-300"><Sparkles size={17} /></div><span className="hidden text-sm font-black sm:inline">Northstar</span></div>}
             <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">Customer data review</p></div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">{viewMode === 'reviewer' ? 'Reviewer workspace' : 'Secure customer review'}</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-violet-700 md:inline-flex"><Sparkles size={12} /> Synthetic data</span>
-            <button type="button" onClick={() => setPayloadOpen(true)} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700"><Braces size={16} /><span className="hidden sm:inline">View payload</span></button>
-            <button type="button" onClick={() => setPresenterMode((current) => !current)} className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-bold shadow-sm transition ${presenterMode ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-300'}`}><Eye size={16} /><span className="hidden md:inline">{presenterMode ? 'Exit presenter' : 'Presenter'}</span></button>
-            <button type="button" onClick={reset} title="Reset demo state" className="grid size-10 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:text-emerald-700"><RefreshCw size={16} /></button>
+            {viewPolicy.showDemoControls && <span className="hidden items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-violet-700 xl:inline-flex"><Sparkles size={12} /> Synthetic data</span>}
+            {viewPolicy.showPayloadControls && <button type="button" onClick={() => setPayloadOpen(true)} className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 md:inline-flex"><Braces size={16} /><span>View payload</span></button>}
+            <ViewModeSwitch mode={viewMode} onChange={switchViewMode} />
+            {viewPolicy.showDemoControls && <button type="button" onClick={reset} title="Reset demo state" className="hidden size-10 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:text-emerald-700 md:grid"><RefreshCw size={16} /></button>}
           </div>
         </header>
 
-        <div className={`mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 xl:px-10 ${presenterMode ? 'max-w-6xl' : 'max-w-7xl'}`}>
-          {presenterMode && <div className="mb-5 flex gap-2 overflow-x-auto pb-2">{list.customers.map((customer) => <button key={customer.id} type="button" onClick={() => selectCustomer(customer.id)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${selectedId === customer.id ? 'bg-slate-950 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200'}`}>{customer.name}</button>)}</div>}
+        <div className={`mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 xl:px-10 ${viewMode === 'customer' ? 'max-w-5xl' : 'max-w-7xl'}`}>
           <section className="relative overflow-hidden rounded-[2rem] bg-[#07110f] p-5 text-white shadow-[0_32px_80px_-48px_rgba(2,20,15,.9)] sm:p-7 lg:p-8">
             <div className="absolute -right-16 -top-24 size-64 rounded-full bg-emerald-400/15 blur-3xl" /><div className="absolute bottom-0 right-1/3 size-32 rounded-full bg-cyan-400/10 blur-3xl" />
             <div className="relative grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
-              <div><div className="flex flex-wrap items-center gap-2"><StatusPill status={journey.customer.status} /><span className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-bold text-slate-300 ring-1 ring-white/10">{journey.customer.risk} risk</span>{journey.customer.tags.map((tag) => <span key={tag} className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-slate-300 ring-1 ring-white/10">{tag}</span>)}</div>
-                <div className="mt-5 flex items-center gap-4"><div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-cyan-300 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30">{journey.customer.initials}</div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-emerald-300">{journey.customer.scenario}</p><h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{journey.customer.name}</h1><p className="mt-1 text-sm text-slate-400">{journey.customer.age} years · {journey.customer.product} · since {journey.customer.relationshipSince}</p></div></div>
+              <div><div className="flex flex-wrap items-center gap-2">{viewPolicy.showInternalCustomerMetadata ? <><StatusPill status={journey.customer.status} /><span className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-bold text-slate-300 ring-1 ring-white/10">{journey.customer.risk} risk</span>{journey.customer.tags.map((tag) => <span key={tag} className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-slate-300 ring-1 ring-white/10">{tag}</span>)}</> : <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1.5 text-[11px] font-bold text-emerald-200 ring-1 ring-emerald-300/20"><ShieldCheck size={13} /> Your secure review</span>}</div>
+                <div className="mt-5 flex items-center gap-4"><div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-cyan-300 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30">{journey.customer.initials}</div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-emerald-300">{viewPolicy.showInternalCustomerMetadata ? journey.customer.scenario : `Hello, ${journey.customer.name.split(' ')[0]}`}</p><h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{viewPolicy.showInternalCustomerMetadata ? journey.customer.name : 'Review your information'}</h1><p className="mt-1 text-sm text-slate-400">{viewPolicy.showInternalCustomerMetadata ? `${journey.customer.age} years · ${journey.customer.product} · since ${journey.customer.relationshipSince}` : `${journey.customer.name} · ${journey.customer.product}`}</p></div></div>
               </div>
-              <div className="grid grid-cols-2 gap-3 lg:w-[360px]"><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">Next action</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.nextAction}</p></div><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">Timing</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.dueLabel}</p></div></div>
+              <div className="grid grid-cols-2 gap-3 lg:w-[360px]"><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">{viewMode === 'reviewer' ? 'Next action' : 'Current step'}</p><p className="mt-1.5 text-sm font-bold text-white">{viewMode === 'reviewer' ? journey.customer.nextAction : screen.eyebrow}</p></div><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">{viewMode === 'reviewer' ? 'Timing' : 'Complete by'}</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.dueLabel}</p></div></div>
             </div>
           </section>
 
-          <div className={`mt-6 grid gap-6 ${presenterMode ? '' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
+          <div className={`mt-6 grid gap-6 ${viewPolicy.showInternalPanels ? 'xl:grid-cols-[minmax(0,1fr)_300px]' : ''}`}>
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_-60px_rgba(15,23,42,.65)]">
               <div className="border-b border-slate-100 p-5 sm:p-7 lg:p-8">
                 <div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{screen.eyebrow}</p><h2 className="mt-2 max-w-2xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{screen.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">{screen.description}</p></div>{screen.estimatedMinutes && <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 sm:inline-flex"><Clock3 size={14} /> {screen.estimatedMinutes} min</span>}</div>
@@ -263,7 +278,7 @@ function App() {
               <footer className="flex items-center justify-between gap-4 border-t border-slate-100 bg-white p-5 sm:px-8 sm:py-6"><button type="button" disabled={currentScreen === 0} onClick={() => setCurrentScreen((current) => Math.max(0, current - 1))} className="inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /> Back</button><button type="button" onClick={advance} disabled={submitting} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-60">{submitting ? <RefreshCw className="animate-spin" size={17} /> : currentScreen === journey.customer.screens.length - 1 ? <Check size={17} strokeWidth={3} /> : <ArrowRight size={17} />}{submitting ? 'Sending…' : screen.primaryAction}</button></footer>
             </section>
 
-            {!presenterMode && <aside className="space-y-4">
+            {viewPolicy.showInternalPanels && <aside className="space-y-4">
               <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><ShieldCheck size={17} /></div><div><p className="text-xs font-bold text-slate-950">Why this is shown</p><p className="text-[10px] text-slate-400">Server decision context</p></div></div><p className="mt-4 text-xs leading-5 text-slate-600">{screen.reason}</p></section>
               <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><LayoutPanelLeft size={17} /></div><div><p className="text-xs font-bold text-slate-950">SDUI trace</p><p className="text-[10px] text-slate-400">Backend → component registry</p></div></div><div className="mt-4 space-y-2">{screen.components.map((component, index) => <button key={component.id} type="button" onClick={() => setPayloadOpen(true)} className="flex w-full items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-left"><span className="grid size-5 place-items-center rounded-md bg-slate-200 text-[9px] font-black text-slate-600">{index + 1}</span><code className="min-w-0 flex-1 truncate text-[10px] font-bold text-violet-700">{component.type}</code><Code2 className="text-slate-300" size={12} /></button>)}</div><button type="button" onClick={() => setPayloadOpen(true)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 hover:border-violet-300 hover:text-violet-700"><Braces size={14} /> Inspect JSON</button></section>
               <section className="rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-lg shadow-indigo-600/15"><UsersRound size={20} className="text-violet-200" /><p className="mt-3 text-sm font-bold">Group fact, local decision</p><p className="mt-1.5 text-xs leading-5 text-violet-100">Identity evidence can be reused with provenance. Risk and customer acceptance stay with {journey.customer.bookingEntity}.</p></section>
@@ -272,7 +287,7 @@ function App() {
         </div>
       </main>
 
-      <PayloadDrawer journey={journey} open={payloadOpen} onClose={() => setPayloadOpen(false)} />
+      <PayloadDrawer journey={journey} open={payloadOpen && viewPolicy.showPayloadControls} onClose={() => setPayloadOpen(false)} />
       {toast && <div className="fixed bottom-6 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl"><CheckCircle2 className="text-emerald-400" size={18} />{toast}</div>}
       {selectedSummary && <span className="sr-only">Selected scenario: {selectedSummary.scenario}</span>}
     </div>

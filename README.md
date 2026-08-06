@@ -12,7 +12,7 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - 13 reusable SDUI component types including verified fields, evidence upload, declarations, source conflict resolution, party relationships, customer-visible profile data and transaction-profile review.
 - Group-wide identity facts separated from booking-entity customer decisions.
 - Dynamic multi-screen journeys, backend submissions and next-screen receipts.
-- A customer portfolio browser, status filters and presenter mode.
+- An explicit Reviewer/Customer view switch for presenting both sides of the same journey.
 - A live JSON drawer showing the exact payload rendered on screen.
 - Backend-defined conditional visibility and required-field validation; selecting “No, I have moved” reveals a structured new-address request.
 - A collapsed “Other information we have about you” component on every first screen, allowing customers to inspect data outside the active request.
@@ -61,6 +61,21 @@ The important boundary is between the renderer and the journey definition:
 | Backend | Customer scenario, trigger, screen sequence, wording, field instructions, controlled options and next step |
 | Frontend | Visual implementation, accessibility, responsive behaviour and component interaction |
 | Shared contract | Discriminated TypeScript component schema and API response types |
+
+## Reviewer and customer views
+
+The demo uses one journey but applies a strict role-specific visibility policy:
+
+| Capability | Reviewer | Customer being reviewed |
+|---|---:|---:|
+| Browse the synthetic customer portfolio | Yes | No |
+| See risk, status, trigger and internal tags | Yes | No |
+| See “Why this is shown” and the SDUI trace | Yes | No |
+| Inspect the raw backend payload | Yes | No |
+| Complete the customer review journey | Yes | Yes |
+| Expand other customer-visible information on file | Yes | Yes |
+
+Select the customer scenario in Reviewer view, then switch to Customer view to demonstrate exactly what that individual would see. Customer view never displays another customer’s name or the internal risk and decision context.
 
 ## API
 
