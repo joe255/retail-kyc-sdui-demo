@@ -9,11 +9,13 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 ## What the demo shows
 
 - 16 synthetic retail customers across action-required, under-review, complete and restricted states.
-- 12 reusable SDUI component types including verified fields, evidence upload, declarations, source conflict resolution, party relationships and transaction-profile review.
+- 13 reusable SDUI component types including verified fields, evidence upload, declarations, source conflict resolution, party relationships, customer-visible profile data and transaction-profile review.
 - Group-wide identity facts separated from booking-entity customer decisions.
 - Dynamic multi-screen journeys, backend submissions and next-screen receipts.
 - A customer portfolio browser, status filters and presenter mode.
 - A live JSON drawer showing the exact payload rendered on screen.
+- Backend-defined conditional visibility and required-field validation; selecting “No, I have moved” reveals a structured new-address request.
+- A collapsed “Other information we have about you” component on every first screen, allowing customers to inspect data outside the active request.
 - Responsive layouts suitable for desktop and mobile demonstrations.
 
 ## Run it

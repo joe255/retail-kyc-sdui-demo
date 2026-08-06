@@ -2,9 +2,17 @@ export type CustomerStatus = 'action_required' | 'under_review' | 'complete' | '
 export type RiskLevel = 'Low' | 'Standard' | 'High'
 export type Tone = 'info' | 'warning' | 'success' | 'critical' | 'neutral'
 
+export interface VisibilityCondition {
+  fieldId: string
+  operator: 'equals' | 'not_equals'
+  value: string | boolean
+}
+
 export interface BaseComponent {
   id: string
   type: string
+  required?: boolean
+  visibleWhen?: VisibilityCondition[]
 }
 
 export interface NoticeComponent extends BaseComponent {
@@ -127,6 +135,22 @@ export interface SummaryComponent extends BaseComponent {
   items: Array<{ label: string; value: string; state?: 'ok' | 'changed' | 'pending' }>
 }
 
+export interface ProfileOverviewComponent extends BaseComponent {
+  type: 'profile_overview'
+  title: string
+  description: string
+  collapsedByDefault: boolean
+  sections: Array<{
+    title: string
+    fields: Array<{
+      label: string
+      value: string
+      verified?: boolean
+      source?: string
+    }>
+  }>
+}
+
 export type SduiComponent =
   | NoticeComponent
   | FieldReviewComponent
@@ -140,6 +164,7 @@ export type SduiComponent =
   | TransactionProfileComponent
   | VerificationComponent
   | SummaryComponent
+  | ProfileOverviewComponent
 
 export interface SduiScreen {
   id: string

@@ -29,6 +29,7 @@ import type {
   FieldReviewComponent,
   InputComponent,
   NoticeComponent,
+  ProfileOverviewComponent,
   RelationshipComponent,
   ResponseState,
   ResponseValue,
@@ -40,6 +41,7 @@ import type {
   UploadComponent,
   VerificationComponent,
 } from '../types/sdui'
+import { isComponentVisible } from '../lib/conditions'
 
 type RendererProps = {
   component: SduiComponent
@@ -253,7 +255,24 @@ function Summary({ component }: { component: SummaryComponent }) {
   )
 }
 
+function ProfileOverview({ component }: { component: ProfileOverviewComponent }) {
+  const [open, setOpen] = useState(!component.collapsedByDefault)
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white">
+      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-slate-50 sm:p-6">
+        <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-teal-100 text-teal-700"><UserRound size={20} /></div>
+        <div className="min-w-0 flex-1"><h3 className="font-bold text-slate-950">{component.title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{component.description}</p></div>
+        <ChevronDown className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} size={20} />
+      </button>
+      {open && <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-3">{component.sections.map((section) => <div key={section.title} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{section.title}</p><div className="mt-3 divide-y divide-slate-100">{section.fields.map((field) => <div key={field.label} className="py-3 first:pt-0 last:pb-0"><div className="flex items-center gap-1.5"><p className="text-[11px] font-semibold text-slate-500">{field.label}</p>{field.verified && <BadgeCheck className="text-emerald-600" size={13} />}</div><p className="mt-0.5 break-words text-sm font-bold text-slate-900">{field.value}</p>{field.source && <p className="mt-1 text-[10px] text-slate-400">{field.source}</p>}</div>)}</div></div>)}</div>
+      </div>}
+    </section>
+  )
+}
+
 export function SduiRenderer({ component, responses, onChange }: RendererProps) {
+  if (!isComponentVisible(component, responses)) return null
   const valueFor = (fieldId: string) => responses[fieldId]
   switch (component.type) {
     case 'notice': return <Notice component={component} />
@@ -268,5 +287,6 @@ export function SduiRenderer({ component, responses, onChange }: RendererProps) 
     case 'transaction_profile': return <TransactionProfile component={component} responses={responses} onChange={onChange} />
     case 'verification': return <Verification component={component} value={valueFor('verification_method')} onChange={onChange} />
     case 'summary': return <Summary component={component} />
+    case 'profile_overview': return <ProfileOverview component={component} />
   }
 }

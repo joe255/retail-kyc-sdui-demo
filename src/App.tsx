@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { getCustomers, getJourney, resetDemo, submitScreen } from './lib/api'
 import { customerProgress, statusLabel } from './lib/status'
+import { missingRequiredFields } from './lib/conditions'
 import { SduiRenderer } from './sdui/renderer'
 import type {
   CustomerListPayload,
@@ -140,6 +141,7 @@ function App() {
   const [presenterMode, setPresenterMode] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [validationFields, setValidationFields] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -155,6 +157,7 @@ function App() {
     setJourney(null)
     setCurrentScreen(0)
     setResponses({})
+    setValidationFields([])
     getJourney(selectedId).then(setJourney).catch((reason: Error) => setError(reason.message))
   }, [selectedId])
 
@@ -175,15 +178,23 @@ function App() {
 
   const changeResponse = (fieldId: string, value: ResponseValue) => {
     setResponses((current) => ({ ...current, [fieldId]: value }))
+    setValidationFields((current) => current.filter((candidate) => candidate !== fieldId))
   }
 
   const advance = async () => {
     if (!journey || !screen) return
+    const missing = missingRequiredFields(screen, responses)
+    if (missing.length) {
+      setValidationFields(missing)
+      setToast(`Complete ${missing.length} required field${missing.length === 1 ? '' : 's'} to continue`)
+      return
+    }
     setSubmitting(true)
     try {
       const receipt = await submitScreen(journey.customer.id, screen.id, responses)
       if (receipt.nextScreenId) {
         setCurrentScreen((current) => current + 1)
+        setValidationFields([])
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } else {
         setToast(`Submitted · ${receipt.submissionId.slice(0, 8)}`)
@@ -198,6 +209,7 @@ function App() {
   const reset = async () => {
     await resetDemo()
     setResponses({})
+    setValidationFields([])
     setCurrentScreen(0)
     setToast('Demo state reset')
   }
@@ -238,21 +250,24 @@ function App() {
             </div>
           </section>
 
-          <div className={`mt-6 grid gap-6 ${presenterMode ? 'lg:grid-cols-[1fr_260px]' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
+          <div className={`mt-6 grid gap-6 ${presenterMode ? '' : 'xl:grid-cols-[minmax(0,1fr)_300px]'}`}>
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_-60px_rgba(15,23,42,.65)]">
               <div className="border-b border-slate-100 p-5 sm:p-7 lg:p-8">
                 <div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{screen.eyebrow}</p><h2 className="mt-2 max-w-2xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{screen.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">{screen.description}</p></div>{screen.estimatedMinutes && <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 sm:inline-flex"><Clock3 size={14} /> {screen.estimatedMinutes} min</span>}</div>
                 <div className="mt-6"><div className="flex items-center justify-between text-[11px] font-bold text-slate-500"><span>Journey progress</span><span>Screen {currentScreen + 1} of {journey.customer.screens.length} · {progress}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>
               </div>
-              <div className="space-y-4 bg-slate-50/45 p-4 sm:p-7 lg:p-8">{screen.components.map((component) => <SduiRenderer key={component.id} component={component} responses={responses} onChange={changeResponse} />)}</div>
+              <div className="space-y-4 bg-slate-50/45 p-4 sm:p-7 lg:p-8">
+                {validationFields.length > 0 && <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-900"><CircleAlert className="mt-0.5 shrink-0 text-rose-600" size={18} /><div><p className="text-sm font-bold">Complete the required information</p><p className="mt-1 text-xs leading-5 text-rose-700">The fields revealed by your answers must be completed before this screen can be submitted.</p></div></div>}
+                {screen.components.map((component) => <SduiRenderer key={component.id} component={component} responses={responses} onChange={changeResponse} />)}
+              </div>
               <footer className="flex items-center justify-between gap-4 border-t border-slate-100 bg-white p-5 sm:px-8 sm:py-6"><button type="button" disabled={currentScreen === 0} onClick={() => setCurrentScreen((current) => Math.max(0, current - 1))} className="inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /> Back</button><button type="button" onClick={advance} disabled={submitting} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-60">{submitting ? <RefreshCw className="animate-spin" size={17} /> : currentScreen === journey.customer.screens.length - 1 ? <Check size={17} strokeWidth={3} /> : <ArrowRight size={17} />}{submitting ? 'Sending…' : screen.primaryAction}</button></footer>
             </section>
 
-            <aside className="space-y-4">
+            {!presenterMode && <aside className="space-y-4">
               <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><ShieldCheck size={17} /></div><div><p className="text-xs font-bold text-slate-950">Why this is shown</p><p className="text-[10px] text-slate-400">Server decision context</p></div></div><p className="mt-4 text-xs leading-5 text-slate-600">{screen.reason}</p></section>
               <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><LayoutPanelLeft size={17} /></div><div><p className="text-xs font-bold text-slate-950">SDUI trace</p><p className="text-[10px] text-slate-400">Backend → component registry</p></div></div><div className="mt-4 space-y-2">{screen.components.map((component, index) => <button key={component.id} type="button" onClick={() => setPayloadOpen(true)} className="flex w-full items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-left"><span className="grid size-5 place-items-center rounded-md bg-slate-200 text-[9px] font-black text-slate-600">{index + 1}</span><code className="min-w-0 flex-1 truncate text-[10px] font-bold text-violet-700">{component.type}</code><Code2 className="text-slate-300" size={12} /></button>)}</div><button type="button" onClick={() => setPayloadOpen(true)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 hover:border-violet-300 hover:text-violet-700"><Braces size={14} /> Inspect JSON</button></section>
               <section className="rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-lg shadow-indigo-600/15"><UsersRound size={20} className="text-violet-200" /><p className="mt-3 text-sm font-bold">Group fact, local decision</p><p className="mt-1.5 text-xs leading-5 text-violet-100">Identity evidence can be reused with provenance. Risk and customer acceptance stay with {journey.customer.bookingEntity}.</p></section>
-            </aside>
+            </aside>}
           </div>
         </div>
       </main>

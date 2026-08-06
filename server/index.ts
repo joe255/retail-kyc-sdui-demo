@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import express from 'express'
 import { customers } from './data/customers'
+import { missingRequiredFields } from '../src/lib/conditions'
 import type {
   ComponentCatalogEntry,
   CustomerListPayload,
@@ -35,7 +36,53 @@ const componentCatalog: ComponentCatalogEntry[] = [
   { type: 'transaction_profile', label: 'Expected activity', purpose: 'Compares observed activity with the relationship expectation.', dataModelTargets: ['BUSINESS_RELATIONSHIP', 'RISK_RATING'] },
   { type: 'verification', label: 'Verification fallback', purpose: 'Shows failed attempts and offers policy-approved alternatives.', dataModelTargets: ['IDENTITY_CHECK', 'CDD_REQUIREMENT'] },
   { type: 'summary', label: 'Review summary', purpose: 'Summarises accepted changes before submission.', dataModelTargets: ['DATA_SUBMISSION', 'CDD_CASE'] },
+  { type: 'profile_overview', label: 'Other information on file', purpose: 'Lets the customer inspect data that is not part of the current request.', dataModelTargets: ['PARTY', 'PERSON', 'CUSTOMER', 'BUSINESS_RELATIONSHIP'] },
 ]
+
+const nationalityByCustomer: Record<string, string> = {
+  'emma-berger': 'Austrian', 'lukas-weber': 'German', 'sofia-marin': 'Spanish', 'amira-haddad': 'Austrian',
+  'daniel-novak': 'Austrian, Czech', 'helena-vogt': 'German', 'victor-santos': 'Spanish', 'noah-klein': 'Austrian',
+  'anna-max': 'Austrian', 'elias-petrov': 'German', 'mia-fischer': 'Austrian', 'oliver-dubois': 'French',
+  'clara-rossi': 'Italian', 'jakob-stein': 'German', 'lea-horvat': 'Croatian', 'karim-aziz': 'Dutch',
+}
+
+function customerVisibleProfile(customer: (typeof customers)[number]) {
+  const market = customer.bookingEntity.slice(-2)
+  const emailName = customer.id.replace('-', '.')
+  return {
+    id: `${customer.id}-profile-overview`,
+    type: 'profile_overview' as const,
+    title: 'Other information we have about you',
+    description: 'These details are not part of the current request. You can still inspect them and contact us if something is incorrect.',
+    collapsedByDefault: true,
+    sections: [
+      {
+        title: 'Personal information',
+        fields: [
+          { label: 'Legal name', value: customer.name, verified: true, source: 'Group Party Master' },
+          { label: 'Age', value: `${customer.age}`, source: 'Verified date of birth' },
+          { label: 'Nationality', value: nationalityByCustomer[customer.id] ?? 'On file', verified: true, source: 'Identity evidence' },
+        ],
+      },
+      {
+        title: 'Contact and tax',
+        fields: [
+          { label: 'Email', value: `${emailName}@example.demo`, source: 'Confirmed by customer' },
+          { label: 'Mobile number', value: `+${market === 'AT' ? '43' : market === 'DE' ? '49' : '31'} ••• ••• 42`, source: 'Confirmed by customer' },
+          { label: 'Tax residency', value: market === 'AT' ? 'Austria' : market === 'DE' ? 'Germany' : 'Netherlands', source: 'Customer declaration' },
+        ],
+      },
+      {
+        title: 'Banking relationship',
+        fields: [
+          { label: 'Booking entity', value: customer.bookingEntity },
+          { label: 'Product', value: customer.product },
+          { label: 'Customer since', value: customer.relationshipSince },
+        ],
+      },
+    ],
+  }
+}
 
 app.disable('x-powered-by')
 app.use(express.json({ limit: '1mb' }))
@@ -87,11 +134,18 @@ app.get('/api/v1/customers/:customerId/journey', (request, response) => {
     return
   }
 
+  const customerJourney = {
+    ...customer,
+    screens: customer.screens.map((screen, index) => index === 0
+      ? { ...screen, components: [...screen.components, customerVisibleProfile(customer)] }
+      : screen),
+  }
+
   const payload: JourneyPayload = {
     contractVersion,
     generatedAt: new Date().toISOString(),
     syntheticData: true,
-    customer,
+    customer: customerJourney,
     presentation: {
       title: customer.scenario,
       description: `${customer.screens.length} server-defined screen${customer.screens.length === 1 ? '' : 's'} for ${customer.bookingEntity}.`,
@@ -113,6 +167,16 @@ app.post('/api/v1/customers/:customerId/submissions', (request, response) => {
   }
   if (screenIndex < 0 || !values || typeof values !== 'object' || Array.isArray(values)) {
     response.status(400).json({ error: 'invalid_submission', message: 'A valid screenId and values object are required.' })
+    return
+  }
+
+  const missingFields = missingRequiredFields(customer.screens[screenIndex], values as Record<string, string | boolean | null>)
+  if (missingFields.length) {
+    response.status(422).json({
+      error: 'missing_required_fields',
+      message: 'Complete all visible required fields before continuing.',
+      fields: missingFields,
+    })
     return
   }
 
