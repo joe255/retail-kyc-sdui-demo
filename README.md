@@ -12,12 +12,13 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - 14 reusable SDUI component types including verified fields, evidence upload, declarations, structured addresses, source conflict resolution, party relationships, editable customer-visible profile data and transaction-profile review.
 - Group-wide identity facts separated from booking-entity customer decisions.
 - Dynamic multi-screen journeys, backend submissions and next-screen receipts.
-- An explicit Reviewer/Customer view switch for presenting both sides of the same journey.
+- An explicit Reviewer/Customer/Data model switch: present both sides of the journey, then inspect the selected customer's populated group-level entities and relationships.
 - A live JSON drawer showing the exact payload rendered on screen.
 - Backend-defined conditional visibility and explicit required-field validation; backend defaults never count as customer answers, and Continue remains disabled until every visible mandatory response is complete.
 - A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor in a focused, responsive dialog and includes the change in the submission without disturbing the profile layout.
 - Minimal first-sight forms with supporting explanations, provenance, legal notes and document guidance available through compact information controls. Mandatory evidence uploads and declarations cannot be skipped.
 - Responsive layouts suitable for desktop and mobile demonstrations.
+- An interactive, pan-and-zoom entity graph for every synthetic customer, including canonical Party/Person/Customer records, relationship data, CDD state, risk ratings and scenario-specific evidence, gaps or screening records.
 
 ## Run it
 

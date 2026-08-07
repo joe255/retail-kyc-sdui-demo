@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import express from 'express'
 import { customers } from './data/customers'
+import { buildCustomerDataModel } from './data/dataModel'
 import { missingRequiredFields } from '../src/lib/conditions'
 import type {
   ComponentCatalogEntry,
@@ -14,7 +15,7 @@ import type {
 
 const app = express()
 const port = Number(process.env.PORT ?? 8787)
-const contractVersion = 'retail-kyc-sdui/1.1'
+const contractVersion = 'retail-kyc-sdui/1.2'
 
 type StoredSubmission = {
   receipt: SubmissionReceipt
@@ -169,6 +170,7 @@ app.get('/api/v1/customers/:customerId/journey', (request, response) => {
       description: `${customer.screens.length} server-defined screen${customer.screens.length === 1 ? '' : 's'} for ${customer.bookingEntity}.`,
       dataBoundary: 'Group identity facts are reusable; CDD status and decisions remain booking-entity specific.',
     },
+    dataModel: buildCustomerDataModel(customer),
   }
   response.json(payload)
 })

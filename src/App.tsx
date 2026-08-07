@@ -9,6 +9,7 @@ import {
   CircleAlert,
   Clock3,
   Code2,
+  Database,
   Eye,
   Info,
   LayoutPanelLeft,
@@ -26,6 +27,7 @@ import { customerProgress, statusLabel } from './lib/status'
 import { missingRequiredFields } from './lib/conditions'
 import { viewModePolicy, type ViewMode } from './lib/viewMode'
 import { SduiRenderer } from './sdui/renderer'
+import { DataModelView } from './components/DataModelView'
 import type {
   CustomerListPayload,
   CustomerStatus,
@@ -138,6 +140,7 @@ function ViewModeSwitch({ mode, onChange }: { mode: ViewMode; onChange: (mode: V
     <div aria-label="Demo view" className="flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
       <button type="button" aria-pressed={mode === 'reviewer'} onClick={() => onChange('reviewer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'reviewer' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><UserRoundCheck size={15} /><span className="hidden sm:inline">Reviewer</span></button>
       <button type="button" aria-pressed={mode === 'customer'} onClick={() => onChange('customer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'customer' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Eye size={15} /><span className="hidden sm:inline">Customer</span></button>
+      <button type="button" aria-pressed={mode === 'model'} onClick={() => onChange('model')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'model' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Database size={15} /><span className="hidden sm:inline">Data model</span></button>
     </div>
   )
 }
@@ -250,7 +253,7 @@ function App() {
             {viewPolicy.showPortfolio && <button type="button" onClick={() => setSidebarOpen(true)} className="grid size-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden"><Menu size={19} /></button>}
             {!viewPolicy.showPortfolio && <div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-slate-950 text-emerald-300"><Sparkles size={17} /></div><span className="hidden text-sm font-black sm:inline">Northstar</span></div>}
             <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">{viewMode === 'reviewer' ? 'Reviewer workspace' : 'Secure customer review'}</p></div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">{viewMode === 'reviewer' ? 'Reviewer workspace' : viewMode === 'model' ? 'Populated data model' : 'Secure customer review'}</p></div>
           </div>
           <div className="flex items-center gap-2">
             {viewPolicy.showDemoControls && <span className="hidden items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-violet-700 xl:inline-flex"><Sparkles size={12} /> Synthetic data</span>}
@@ -271,7 +274,7 @@ function App() {
             </div>
           </section>
 
-          <div className={`mt-6 grid gap-6 ${viewPolicy.showInternalPanels ? 'xl:grid-cols-[minmax(0,1fr)_300px]' : ''}`}>
+          {viewMode === 'model' ? <DataModelView model={journey.dataModel} customerName={journey.customer.name} /> : <div className={`mt-6 grid gap-6 ${viewPolicy.showInternalPanels ? 'xl:grid-cols-[minmax(0,1fr)_300px]' : ''}`}>
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_-60px_rgba(15,23,42,.65)]">
               <div className="border-b border-slate-100 p-5 sm:p-7 lg:p-8">
                 <div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{screen.eyebrow}</p><div className="mt-2 flex items-center gap-2"><h2 className="max-w-2xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{screen.title}</h2><InfoTooltip text={screen.description} label="About this step" /></div></div>{screen.estimatedMinutes && <span title={`About ${screen.estimatedMinutes} minutes`} aria-label={`Estimated time: ${screen.estimatedMinutes} minutes`} className="hidden size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 sm:inline-flex"><Clock3 size={15} /></span>}</div>
@@ -289,7 +292,7 @@ function App() {
               <section className="rounded-3xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><LayoutPanelLeft size={17} /></div><div><p className="text-xs font-bold text-slate-950">SDUI trace</p><p className="text-[10px] text-slate-400">Backend → component registry</p></div></div><div className="mt-4 space-y-2">{screen.components.map((component, index) => <button key={component.id} type="button" onClick={() => setPayloadOpen(true)} className="flex w-full items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-left"><span className="grid size-5 place-items-center rounded-md bg-slate-200 text-[9px] font-black text-slate-600">{index + 1}</span><code className="min-w-0 flex-1 truncate text-[10px] font-bold text-violet-700">{component.type}</code><Code2 className="text-slate-300" size={12} /></button>)}</div><button type="button" onClick={() => setPayloadOpen(true)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-600 hover:border-violet-300 hover:text-violet-700"><Braces size={14} /> Inspect JSON</button></section>
               <section className="rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-lg shadow-indigo-600/15"><UsersRound size={20} className="text-violet-200" /><p className="mt-3 text-sm font-bold">Group fact, local decision</p><p className="mt-1.5 text-xs leading-5 text-violet-100">Identity evidence can be reused with provenance. Risk and customer acceptance stay with {journey.customer.bookingEntity}.</p></section>
             </aside>}
-          </div>
+          </div>}
         </div>
       </main>
 

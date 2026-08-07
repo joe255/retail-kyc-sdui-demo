@@ -256,6 +256,42 @@ export interface JourneyPayload {
     description: string
     dataBoundary: string
   }
+  dataModel: CustomerDataModel
+}
+
+export type DataModelLayer = 'identity' | 'party' | 'relationship' | 'assurance'
+export type DataModelFieldState = 'verified' | 'current' | 'pending' | 'missing' | 'changed'
+
+export interface DataModelField {
+  name: string
+  value: string
+  key?: 'PK' | 'FK' | 'PK/FK'
+  state?: DataModelFieldState
+}
+
+export interface DataModelNode {
+  id: string
+  entity: string
+  recordLabel: string
+  layer: DataModelLayer
+  state: DataModelFieldState
+  fields: DataModelField[]
+}
+
+export interface DataModelEdge {
+  id: string
+  source: string
+  target: string
+  label: string
+  cardinality: string
+}
+
+export interface CustomerDataModel {
+  partyId: string
+  customerId: string
+  generatedAt: string
+  nodes: DataModelNode[]
+  edges: DataModelEdge[]
 }
 
 export interface SubmissionReceipt {

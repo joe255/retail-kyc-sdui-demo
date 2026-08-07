@@ -20,4 +20,13 @@ describe('role-specific visibility policy', () => {
       showDemoControls: false,
     })
   })
+
+  it('shows the populated data model with portfolio navigation', () => {
+    expect(viewModePolicy.model).toMatchObject({
+      showPortfolio: true,
+      showInternalCustomerMetadata: true,
+      showInternalPanels: false,
+      showPayloadControls: true,
+    })
+  })
 })
