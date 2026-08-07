@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
@@ -329,41 +329,95 @@ function ProfileOverview({ component, responses, onChange }: { component: Profil
   const [editingOriginal, setEditingOriginal] = useState<ResponseValue>(null)
   const [editInvalid, setEditInvalid] = useState(false)
   const [savedFields, setSavedFields] = useState<Set<string>>(() => new Set())
+  const fields = component.sections.flatMap((section) => section.fields)
+  const editingField = fields.find((field) => field.editComponent.fieldId === editing)
+
   const startEdit = (field: ProfileOverviewComponent['sections'][number]['fields'][number]) => {
     setEditing(field.editComponent.fieldId)
     setEditingOriginal(responses[field.editComponent.fieldId] ?? ('value' in field.editComponent ? field.editComponent.value ?? null : null))
     setEditInvalid(false)
   }
+
   const cancelEdit = (field: ProfileOverviewComponent['sections'][number]['fields'][number]) => {
     onChange(field.editComponent.fieldId, editingOriginal)
     setEditing(null)
     setEditInvalid(false)
-    setSavedFields((current) => new Set(current).add(field.editComponent.fieldId))
   }
+
   const saveEdit = (field: ProfileOverviewComponent['sections'][number]['fields'][number]) => {
     if (!isRequiredComponentComplete(field.editComponent, responses)) {
       setEditInvalid(true)
       return
     }
+    setSavedFields((current) => new Set(current).add(field.editComponent.fieldId))
     setEditing(null)
     setEditInvalid(false)
   }
+
+  useEffect(() => {
+    if (!editingField) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelEdit(editingField)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [editingField, editingOriginal])
+
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white">
-      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-slate-50 sm:p-6">
-        <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-teal-100 text-teal-700"><UserRound size={20} /></div>
-        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-950">{component.title}</h3><span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700"><Pencil size={10} /> Editable</span></div><p className="mt-1 text-xs leading-5 text-slate-500">{component.description}</p></div>
-        <ChevronDown className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} size={20} />
-      </button>
-      {open && <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6">
-        <div className="grid gap-4 lg:grid-cols-3">{component.sections.map((section) => <div key={section.title} className="self-start rounded-2xl border border-slate-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{section.title}</p><div className="mt-3 divide-y divide-slate-100">{section.fields.map((field) => {
-          const fieldId = field.editComponent.fieldId
-          const changed = savedFields.has(fieldId)
-          const isEditing = editing === fieldId
-          return <div key={fieldId} className="py-3 first:pt-0 last:pb-0"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-1.5"><p className="text-[11px] font-semibold text-slate-500">{field.label}</p>{field.verified && <BadgeCheck className="text-emerald-600" size={13} />}{changed && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-700">Changed</span>}</div><p className="mt-0.5 break-words text-sm font-bold text-slate-900">{profileValue(field, responses)}</p>{field.source && <p className="mt-1 text-[10px] text-slate-400">{field.source}</p>}</div><button type="button" onClick={() => isEditing ? cancelEdit(field) : startEdit(field)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 hover:border-emerald-300 hover:text-emerald-700">{isEditing ? <X size={11} /> : <Pencil size={11} />}{isEditing ? 'Cancel' : 'Edit'}</button></div>{isEditing && <div className="mt-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200"><SduiRenderer component={field.editComponent} responses={responses} onChange={(id, value) => { setEditInvalid(false); onChange(id, value) }} invalidFields={editInvalid ? [fieldId] : []} /><div className="mt-3 flex justify-end"><button type="button" onClick={() => saveEdit(field)} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700">Save change</button></div></div>}</div>
-        })}</div></div>)}</div>
+    <>
+      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white">
+        <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="flex w-full items-center gap-4 p-5 text-left transition hover:bg-slate-50 sm:p-6">
+          <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-teal-100 text-teal-700"><UserRound size={20} /></div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-950">{component.title}</h3><span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700"><Pencil size={10} /> Editable</span></div><p className="mt-1 text-xs leading-5 text-slate-500">{component.description}</p></div>
+          <ChevronDown className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} size={20} />
+        </button>
+        {open && <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-6">
+          <div className="grid gap-4 lg:grid-cols-3">{component.sections.map((section) => <div key={section.title} className="self-start rounded-2xl border border-slate-200 bg-white p-4"><p className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{section.title}</p><div className="mt-3 divide-y divide-slate-100">{section.fields.map((field) => {
+            const fieldId = field.editComponent.fieldId
+            const changed = savedFields.has(fieldId)
+            const isEditing = editing === fieldId
+            return <div key={fieldId} className={`-mx-2 rounded-xl px-2 py-3 first:pt-0 last:pb-0 ${isEditing ? 'bg-emerald-50/70 ring-1 ring-emerald-100' : ''}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><p className="text-[11px] font-semibold text-slate-500">{field.label}</p>{field.verified && <BadgeCheck className="text-emerald-600" size={13} />}{changed && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-700">Changed</span>}</div><p className="mt-0.5 break-words text-sm font-bold text-slate-900">{profileValue(field, responses)}</p>{field.source && <p className="mt-1 text-[10px] text-slate-400">{field.source}</p>}</div><button type="button" onClick={() => startEdit(field)} aria-label={`Edit ${field.label}`} className={`inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition ${isEditing ? 'border-emerald-300 bg-white text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'}`}><Pencil size={11} />{isEditing ? 'Editing' : 'Edit'}</button></div></div>
+          })}</div></div>)}</div>
+        </div>}
+      </section>
+
+      {editingField && <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 backdrop-blur-sm sm:items-center sm:p-6" onMouseDown={() => cancelEdit(editingField)}>
+        <section role="dialog" aria-modal="true" aria-labelledby={`edit-${editingField.editComponent.fieldId}-title`} className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-[0_32px_100px_-24px_rgba(15,23,42,.65)] sm:max-h-[88vh] sm:rounded-[2rem]" onMouseDown={(event) => event.stopPropagation()}>
+          <header className="flex items-start gap-4 border-b border-slate-100 px-5 py-5 sm:px-7 sm:py-6">
+            <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><Pencil size={19} /></div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black uppercase tracking-[.16em] text-emerald-700">Update your information</p>
+              <h3 id={`edit-${editingField.editComponent.fieldId}-title`} className="mt-1 text-xl font-bold text-slate-950">Edit {editingField.label}</h3>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                <span>Currently on file: <strong className="font-semibold text-slate-700">{editingField.value}</strong></span>
+                {editingField.source && <span>Source: {editingField.source}</span>}
+                {editingField.verified && <span className="inline-flex items-center gap-1 font-semibold text-emerald-700"><BadgeCheck size={13} /> Verified</span>}
+              </div>
+            </div>
+            <button type="button" onClick={() => cancelEdit(editingField)} aria-label="Close editor without saving" className="grid size-10 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"><X size={20} /></button>
+          </header>
+
+          {editingField.verified && <div className="flex items-start gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3.5 text-xs leading-5 text-amber-900 sm:px-7"><LockKeyhole className="mt-0.5 shrink-0 text-amber-700" size={16} /><p><strong>Verified detail.</strong> Saving a change may create a review task so we can keep your identity record accurate.</p></div>}
+
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-7">
+            <SduiRenderer component={editingField.editComponent} responses={responses} onChange={(id, value) => { setEditInvalid(false); onChange(id, value) }} invalidFields={editInvalid ? [editingField.editComponent.fieldId] : []} />
+          </div>
+
+          <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            <p className="hidden max-w-sm text-xs leading-5 text-slate-500 sm:block">Only this detail will be updated. Your other information remains unchanged.</p>
+            <div className="flex gap-3 sm:ml-auto">
+              <button type="button" onClick={() => cancelEdit(editingField)} className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none">Cancel</button>
+              <button type="button" onClick={() => saveEdit(editingField)} className="flex-1 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200 sm:flex-none">Save change</button>
+            </div>
+          </footer>
+        </section>
       </div>}
-    </section>
+    </>
   )
 }
 

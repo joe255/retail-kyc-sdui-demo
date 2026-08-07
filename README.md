@@ -15,7 +15,7 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - An explicit Reviewer/Customer view switch for presenting both sides of the same journey.
 - A live JSON drawer showing the exact payload rendered on screen.
 - Backend-defined conditional visibility and required-field validation; selecting “No, I have moved” reveals a structured new-address request.
-- A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor and includes the change in the submission.
+- A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor in a focused, responsive dialog and includes the change in the submission without disturbing the profile layout.
 - Inline, component-specific validation mirrored by backend enforcement. Mandatory evidence uploads and declarations cannot be skipped.
 - Responsive layouts suitable for desktop and mobile demonstrations.
 
