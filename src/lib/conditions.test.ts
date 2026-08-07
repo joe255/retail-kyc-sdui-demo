@@ -28,4 +28,21 @@ describe('server-driven conditions', () => {
     expect(isRequiredComponentComplete(upload, { identity_document: { name: 'too-large.pdf', size: 11 * 1024 * 1024 } as File })).toBe(false)
     expect(isRequiredComponentComplete(upload, { identity_document: { name: 'passport.pdf', size: 2 * 1024 * 1024 } as File })).toBe(true)
   })
+
+  it('does not treat backend defaults as an explicit customer answer', () => {
+    const purposeScreen = customers.find((customer) => customer.id === 'jakob-stein')!.screens[1]
+    expect(missingRequiredFields(purposeScreen, {})).toEqual(['relationship_purpose', 'expected_monthly'])
+    expect(missingRequiredFields(purposeScreen, {
+      relationship_purpose: 'salary_investment',
+      expected_monthly: '5000_10000',
+    })).toEqual([])
+  })
+
+  it('starts every actionable screen with at least one outstanding customer response', () => {
+    for (const customer of customers.filter((candidate) => candidate.status === 'action_required')) {
+      for (const screen of customer.screens) {
+        expect(missingRequiredFields(screen, {}).length, `${customer.id}/${screen.id}`).toBeGreaterThan(0)
+      }
+    }
+  })
 })

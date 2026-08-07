@@ -10,6 +10,7 @@ import {
   Clock3,
   Code2,
   Eye,
+  Info,
   LayoutPanelLeft,
   Menu,
   RefreshCw,
@@ -52,6 +53,10 @@ const statusDot: Record<CustomerStatus, string> = {
 
 function StatusPill({ status }: { status: CustomerStatus }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${statusStyles[status]}`}><span className={`size-1.5 rounded-full ${statusDot[status]}`} />{statusLabel[status]}</span>
+}
+
+function InfoTooltip({ text, label = 'More information' }: { text: string; label?: string }) {
+  return <span tabIndex={0} role="img" aria-label={`${label}: ${text}`} title={text} className="inline-grid size-6 shrink-0 cursor-help place-items-center rounded-full text-slate-400 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus:bg-slate-100 focus:text-slate-700"><Info size={14} /></span>
 }
 
 function CustomerCard({ customer, selected, onClick }: { customer: CustomerSummary; selected: boolean; onClick: () => void }) {
@@ -178,6 +183,7 @@ function App() {
 
   const screen = journey?.customer.screens[currentScreen]
   const progress = journey ? customerProgress(journey.customer, currentScreen) : 0
+  const requiredRemaining = screen ? missingRequiredFields(screen, responses) : []
   const selectedSummary = useMemo(() => list?.customers.find((customer) => customer.id === selectedId), [list, selectedId])
   const viewPolicy = viewModePolicy[viewMode]
 
@@ -193,7 +199,7 @@ function App() {
 
   const advance = async () => {
     if (!journey || !screen) return
-    const missing = missingRequiredFields(screen, responses)
+    const missing = requiredRemaining
     if (missing.length) {
       setValidationFields(missing)
       setToast(`Complete ${missing.length} required field${missing.length === 1 ? '' : 's'} to continue`)
@@ -261,21 +267,21 @@ function App() {
               <div><div className="flex flex-wrap items-center gap-2">{viewPolicy.showInternalCustomerMetadata ? <><StatusPill status={journey.customer.status} /><span className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-bold text-slate-300 ring-1 ring-white/10">{journey.customer.risk} risk</span>{journey.customer.tags.map((tag) => <span key={tag} className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-slate-300 ring-1 ring-white/10">{tag}</span>)}</> : <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1.5 text-[11px] font-bold text-emerald-200 ring-1 ring-emerald-300/20"><ShieldCheck size={13} /> Your secure review</span>}</div>
                 <div className="mt-5 flex items-center gap-4"><div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-300 to-cyan-300 text-sm font-black text-slate-950 shadow-lg shadow-emerald-950/30">{journey.customer.initials}</div><div><p className="text-xs font-bold uppercase tracking-[.14em] text-emerald-300">{viewPolicy.showInternalCustomerMetadata ? journey.customer.scenario : `Hello, ${journey.customer.name.split(' ')[0]}`}</p><h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{viewPolicy.showInternalCustomerMetadata ? journey.customer.name : 'Review your information'}</h1><p className="mt-1 text-sm text-slate-400">{viewPolicy.showInternalCustomerMetadata ? `${journey.customer.age} years · ${journey.customer.product} · since ${journey.customer.relationshipSince}` : `${journey.customer.name} · ${journey.customer.product}`}</p></div></div>
               </div>
-              <div className="grid grid-cols-2 gap-3 lg:w-[360px]"><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">{viewMode === 'reviewer' ? 'Next action' : 'Current step'}</p><p className="mt-1.5 text-sm font-bold text-white">{viewMode === 'reviewer' ? journey.customer.nextAction : screen.eyebrow}</p></div><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">{viewMode === 'reviewer' ? 'Timing' : 'Complete by'}</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.dueLabel}</p></div></div>
+              {viewPolicy.showInternalCustomerMetadata ? <div className="grid grid-cols-2 gap-3 lg:w-[360px]"><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">Next action</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.nextAction}</p></div><div className="rounded-2xl bg-white/6 p-4 ring-1 ring-white/10"><p className="text-[10px] font-bold uppercase tracking-[.13em] text-slate-500">Timing</p><p className="mt-1.5 text-sm font-bold text-white">{journey.customer.dueLabel}</p></div></div> : <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/8 px-3 py-2 text-xs font-bold text-slate-200 ring-1 ring-white/10"><Clock3 size={14} className="text-emerald-300" />{journey.customer.dueLabel}</span>}
             </div>
           </section>
 
           <div className={`mt-6 grid gap-6 ${viewPolicy.showInternalPanels ? 'xl:grid-cols-[minmax(0,1fr)_300px]' : ''}`}>
             <section className="min-w-0 overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_30px_80px_-60px_rgba(15,23,42,.65)]">
               <div className="border-b border-slate-100 p-5 sm:p-7 lg:p-8">
-                <div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{screen.eyebrow}</p><h2 className="mt-2 max-w-2xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{screen.title}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">{screen.description}</p></div>{screen.estimatedMinutes && <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 sm:inline-flex"><Clock3 size={14} /> {screen.estimatedMinutes} min</span>}</div>
+                <div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{screen.eyebrow}</p><div className="mt-2 flex items-center gap-2"><h2 className="max-w-2xl text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{screen.title}</h2><InfoTooltip text={screen.description} label="About this step" /></div></div>{screen.estimatedMinutes && <span title={`About ${screen.estimatedMinutes} minutes`} aria-label={`Estimated time: ${screen.estimatedMinutes} minutes`} className="hidden size-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 sm:inline-flex"><Clock3 size={15} /></span>}</div>
                 <div className="mt-6"><div className="flex items-center justify-between text-[11px] font-bold text-slate-500"><span>Journey progress</span><span>Screen {currentScreen + 1} of {journey.customer.screens.length} · {progress}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all duration-500" style={{ width: `${progress}%` }} /></div></div>
               </div>
               <div className="space-y-4 bg-slate-50/45 p-4 sm:p-7 lg:p-8">
                 {validationFields.length > 0 && <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-900"><CircleAlert className="mt-0.5 shrink-0 text-rose-600" size={18} /><div><p className="text-sm font-bold">Complete the required information</p><p className="mt-1 text-xs leading-5 text-rose-700">The fields revealed by your answers must be completed before this screen can be submitted.</p></div></div>}
                 {screen.components.map((component) => <SduiRenderer key={component.id} component={component} responses={responses} onChange={changeResponse} invalidFields={validationFields} />)}
               </div>
-              <footer className="flex items-center justify-between gap-4 border-t border-slate-100 bg-white p-5 sm:px-8 sm:py-6"><button type="button" disabled={currentScreen === 0} onClick={() => setCurrentScreen((current) => Math.max(0, current - 1))} className="inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /> Back</button><button type="button" onClick={advance} disabled={submitting} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:opacity-60">{submitting ? <RefreshCw className="animate-spin" size={17} /> : currentScreen === journey.customer.screens.length - 1 ? <Check size={17} strokeWidth={3} /> : <ArrowRight size={17} />}{submitting ? 'Sending…' : screen.primaryAction}</button></footer>
+              <footer className="flex items-center justify-between gap-4 border-t border-slate-100 bg-white p-5 sm:px-8 sm:py-6"><button type="button" disabled={currentScreen === 0} onClick={() => setCurrentScreen((current) => Math.max(0, current - 1))} className="inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-30"><ArrowLeft size={17} /> Back</button><div className="flex items-center gap-3">{requiredRemaining.length > 0 && <span className="hidden text-right text-xs font-semibold text-amber-700 sm:block">{requiredRemaining.length} required<br />remaining</span>}<button type="button" onClick={advance} disabled={submitting || requiredRemaining.length > 0} title={requiredRemaining.length > 0 ? `Complete ${requiredRemaining.length} required field${requiredRemaining.length === 1 ? '' : 's'} first` : screen.primaryAction} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/15 transition hover:-translate-y-0.5 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none disabled:hover:translate-y-0">{submitting ? <RefreshCw className="animate-spin" size={17} /> : currentScreen === journey.customer.screens.length - 1 ? <Check size={17} strokeWidth={3} /> : <ArrowRight size={17} />}{submitting ? 'Sending…' : screen.primaryAction}</button></div></footer>
             </section>
 
             {viewPolicy.showInternalPanels && <aside className="space-y-4">

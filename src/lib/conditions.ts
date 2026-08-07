@@ -51,6 +51,7 @@ export function missingRequiredFields(screen: SduiScreen, responses: ResponseSta
     if (!component.required || !isComponentVisible(component, responses)) return []
     const fieldId = componentFieldId(component)
     if (!fieldId) return []
+    if (!Object.prototype.hasOwnProperty.call(responses, fieldId)) return [fieldId]
     return isRequiredComponentComplete(component, responses) ? [] : [fieldId]
   })
 }
