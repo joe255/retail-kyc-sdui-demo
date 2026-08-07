@@ -26,4 +26,18 @@ describe('data model graph layout', () => {
     expect(column('customer')).toBeLessThan(column('business-relationship'))
     expect(column('business-relationship')).toBeLessThan(column('risk-rating'))
   })
+
+  it('places every record of the same entity type in one vertical column', () => {
+    for (const customer of customers) {
+      const model = buildCustomerDataModel(customer)
+      const layouts = new Map(layoutDataModel(model).map((node) => [node.id, node]))
+      const columnsByEntity = new Map<string, Set<number>>()
+      for (const node of model.nodes) {
+        const columns = columnsByEntity.get(node.entity) ?? new Set<number>()
+        columns.add(layouts.get(node.id)!.column)
+        columnsByEntity.set(node.entity, columns)
+      }
+      expect([...columnsByEntity.values()].every((columns) => columns.size === 1), customer.id).toBe(true)
+    }
+  })
 })

@@ -15,7 +15,7 @@ import type {
 
 const app = express()
 const port = Number(process.env.PORT ?? 8787)
-const contractVersion = 'retail-kyc-sdui/1.2'
+const contractVersion = 'retail-kyc-sdui/1.3'
 
 type StoredSubmission = {
   receipt: SubmissionReceipt

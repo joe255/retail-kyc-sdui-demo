@@ -21,7 +21,8 @@ const node = (
   layer: DataModelNode['layer'],
   state: DataModelFieldState,
   fields: DataModelField[],
-): DataModelNode => ({ id, entity, recordLabel, layer, state, fields })
+  emphasis: DataModelNode['emphasis'] = 'supporting',
+): DataModelNode => ({ id, entity, recordLabel, layer, state, fields, emphasis })
 
 const edge = (source: string, target: string, label: string, cardinality: string): DataModelEdge => ({
   id: `${source}-${target}`,
@@ -90,13 +91,13 @@ function scenarioRecords(customer: CustomerScenario, partyId: string, customerId
       records.nodes.push(node('related-party', 'RELATED_PARTY', 'Eva Klein · mother', 'relationship', 'verified', [
         id('related_party_id', 'RP-NK-01', 'PK'), id('customer_id', customerId, 'FK'), id('party_id', 'PTY-EVA-KLEIN', 'FK'), value('relationship', 'legal representative'),
         value('authority_granted_by', 'parental guardianship'), value('what_they_may_do', 'approve and operate youth account'), value('authority_evidence_ref', 'CR-1842'),
-      ]))
+      ], 'connected'))
       records.nodes.push(node('connected-party', 'PARTY', 'Eva Klein · representative', 'party', 'verified', [
         id('party_id', 'PTY-EVA-KLEIN', 'PK'), value('party_type', 'person'), value('pep_status', 'not a PEP'), value('first_known_on', '2021-09-14'), value('merged_into_party_id', 'null'),
-      ]))
+      ], 'connected'))
       records.nodes.push(node('connected-person', 'PERSON', 'Eva Klein', 'identity', 'verified', [
         id('party_id', 'PTY-EVA-KLEIN', 'PK/FK'), value('given_name', 'Eva'), value('family_name', 'Klein'), value('birth_date', '1988-06-09'), value('birth_country', 'Austria'), value('is_minor', 'false'),
-      ]))
+      ], 'connected'))
       records.edges.push(edge('customer', 'related-party', 'has around it', '1 : 0..*'))
       records.edges.push(edge('related-party', 'connected-party', 'references', '1 : 1'))
       records.edges.push(edge('connected-party', 'connected-person', 'if an individual', '1 : 0..1'))
@@ -105,13 +106,13 @@ function scenarioRecords(customer: CustomerScenario, partyId: string, customerId
       records.nodes.push(node('related-party', 'RELATED_PARTY', 'Max Gruber · joint holder', 'relationship', 'verified', [
         id('related_party_id', 'RP-AG-02', 'PK'), id('customer_id', customerId, 'FK'), id('party_id', 'PTY-MAX-GRUBER', 'FK'), value('relationship', 'joint account holder'),
         value('what_they_may_do', 'transact independently'), value('valid_from', '2022-04-12'), value('authority_evidence_ref', 'joint mandate JM-2204'),
-      ]))
+      ], 'connected'))
       records.nodes.push(node('connected-party', 'PARTY', 'Max Gruber · joint holder', 'party', 'verified', [
         id('party_id', 'PTY-MAX-GRUBER', 'PK'), value('party_type', 'person'), value('pep_status', 'not a PEP'), value('first_known_on', '2022-04-12'), value('merged_into_party_id', 'null'),
-      ]))
+      ], 'connected'))
       records.nodes.push(node('connected-person', 'PERSON', 'Max Gruber', 'identity', 'verified', [
         id('party_id', 'PTY-MAX-GRUBER', 'PK/FK'), value('given_name', 'Max'), value('family_name', 'Gruber'), value('birth_date', '1984-01-28'), value('birth_country', 'Austria'), value('is_minor', 'false'),
-      ]))
+      ], 'connected'))
       records.edges.push(edge('customer', 'related-party', 'has around it', '1 : 0..*'))
       records.edges.push(edge('related-party', 'connected-party', 'references', '1 : 1'))
       records.edges.push(edge('connected-party', 'connected-person', 'if an individual', '1 : 0..1'))
@@ -150,7 +151,7 @@ function scenarioRecords(customer: CustomerScenario, partyId: string, customerId
       records.nodes.push(node('duplicate-party', 'PARTY', 'Duplicate record', 'party', 'changed', [
         id('party_id', 'PTY-LEA-DUP-02', 'PK'), value('party_type', 'person'), value('first_known_on', '2025-11-18'),
         value('merged_into_party_id', partyId, 'changed'),
-      ]))
+      ], 'connected'))
       records.edges.push(edge('duplicate-party', 'party', 'merged into', '1 : 1'))
       break
     case 'karim-aziz':
@@ -176,7 +177,8 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
     : market === 'DE'
       ? { street: 'Alsterufer 17', postcode: '20354', city: 'Hamburg' }
       : { street: 'Prinsengracht 248', postcode: '1016 HG', city: 'Amsterdam' }
-  const [givenName, ...familyParts] = customer.name.split(' ')
+  const primaryPersonName = customer.id === 'anna-max' ? 'Anna Gruber' : customer.name
+  const [givenName, ...familyParts] = primaryPersonName.split(' ')
   const partyId = `PTY-${customer.id.toUpperCase()}`
   const customerId = `CUS-${customer.id.toUpperCase()}`
   const relationshipId = `REL-${customer.id.toUpperCase()}`
@@ -188,11 +190,11 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
       id('party_id', partyId, 'PK'), value('party_type', 'person'),
       value('pep_status', customer.id === 'helena-vogt' ? 'potential PEP' : 'not a PEP', customer.id === 'helena-vogt' ? 'pending' : 'verified'),
       value('first_known_on', `${customer.relationshipSince}-01-01`), value('merged_into_party_id', customer.id === 'lea-horvat' ? '— canonical record —' : 'null'),
-    ]),
-    node('person', 'PERSON', customer.name, 'identity', 'verified', [
+    ], 'primary'),
+    node('person', 'PERSON', primaryPersonName, 'identity', 'verified', [
       id('party_id', partyId, 'PK/FK'), value('given_name', givenName), value('family_name', familyParts.join(' ')),
       value('birth_date', `${2026 - customer.age}-03-14`), value('birth_country', country), value('has_fixed_residence', 'true'), value('is_minor', customer.age < 18 ? 'true' : 'false'),
-    ]),
+    ], 'primary'),
     node('address', 'ADDRESS', 'Current residential address', 'identity', customer.id === 'sofia-marin' || customer.id === 'amira-haddad' ? 'pending' : 'verified', [
       id('address_id', `ADDR-${customer.id.toUpperCase()}`, 'PK'), id('party_id', partyId, 'FK'), value('address_type', 'residence'),
       value('country', country), value('city', address.city), value('postcode', address.postcode), value('street', address.street),
@@ -204,11 +206,11 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
     node('customer', 'CUSTOMER', customer.bookingEntity, 'relationship', customer.status === 'complete' ? 'verified' : 'current', [
       id('customer_id', customerId, 'PK'), id('party_id', partyId, 'FK'), value('booking_entity', customer.bookingEntity),
       value('booking_entity_country', market), value('status', customer.status), value('due_diligence_level', dueDiligence), value('onboarded_on', `${customer.relationshipSince}-01-01`),
-    ]),
+    ], 'primary'),
     node('business-relationship', 'BUSINESS_RELATIONSHIP', customer.product, 'relationship', 'current', [
       id('relationship_id', relationshipId, 'PK'), id('customer_id', customerId, 'FK'), value('product_or_service', customer.product),
       value('engagement_type', 'ongoing relationship'), value('why_customer_wants_it', customer.scenario), value('occupation_or_sector', customer.id === 'mia-fischer' ? 'Data analyst · pending refresh' : 'Employed professional'), value('opened_on', `${customer.relationshipSince}-01-01`),
-    ]),
+    ], 'primary'),
     node('cdd-checklist', 'CDD_CHECKLIST', 'Current completion state', 'assurance', cddState, [
       id('customer_id', customerId, 'PK/FK'), value('identity_of_customer', 'verified'),
       value('purpose_and_nature', customer.status === 'action_required' ? 'review required' : 'understood', cddState),

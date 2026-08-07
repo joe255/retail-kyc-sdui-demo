@@ -275,6 +275,7 @@ export interface DataModelNode {
   recordLabel: string
   layer: DataModelLayer
   state: DataModelFieldState
+  emphasis: 'primary' | 'supporting' | 'connected'
   fields: DataModelField[]
 }
 

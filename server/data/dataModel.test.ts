@@ -46,4 +46,15 @@ describe('populated customer data models', () => {
       expect.objectContaining({ source: 'connected-party', target: 'connected-person' }),
     ]))
   })
+
+  it('separates and marks the primary customer records from connected people', () => {
+    const jointModel = buildCustomerDataModel(customers.find((customer) => customer.id === 'anna-max')!)
+    expect(jointModel.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'person', recordLabel: 'Anna Gruber', emphasis: 'primary' }),
+      expect.objectContaining({ id: 'party', emphasis: 'primary' }),
+      expect.objectContaining({ id: 'customer', emphasis: 'primary' }),
+      expect.objectContaining({ id: 'business-relationship', emphasis: 'primary' }),
+      expect.objectContaining({ id: 'connected-person', recordLabel: 'Max Gruber', emphasis: 'connected' }),
+    ]))
+  })
 })

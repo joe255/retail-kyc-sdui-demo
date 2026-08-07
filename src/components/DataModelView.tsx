@@ -12,14 +12,14 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { BadgeCheck, CircleAlert, CircleDashed, Database, GitBranch, KeyRound, Link2 } from 'lucide-react'
+import { BadgeCheck, CircleAlert, CircleDashed, Database, GitBranch, KeyRound, Link2, Star } from 'lucide-react'
 import { layoutDataModel } from '../lib/dataModelLayout'
 import type { CustomerDataModel, DataModelFieldState, DataModelLayer } from '../types/sdui'
 
 type EntityPort = {
   id: string
   type: 'source' | 'target'
-  position: 'left' | 'right'
+  position: 'left' | 'right' | 'top' | 'bottom'
   top: number
 }
 
@@ -28,6 +28,7 @@ type EntityNodeData = {
   recordLabel: string
   layer: DataModelLayer
   state: DataModelFieldState
+  emphasis: CustomerDataModel['nodes'][number]['emphasis']
   fields: CustomerDataModel['nodes'][number]['fields']
   ports: EntityPort[]
 } & Record<string, unknown>
@@ -60,12 +61,16 @@ function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
   const layer = layerStyle[data.layer]
   const state = stateStyle[data.state]
   return (
-    <article className={`w-[286px] overflow-hidden rounded-2xl border bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,.55)] transition ${selected ? 'border-slate-900 ring-4 ring-slate-900/10' : 'border-slate-200'}`}>
-      {data.ports.map((port) => <Handle key={port.id} id={port.id} type={port.type} position={port.position === 'left' ? Position.Left : Position.Right} style={{ top: `${port.top}%` }} className={`!size-2.5 !border-2 !border-white ${port.type === 'source' ? '!bg-slate-700' : '!bg-slate-400'}`} />)}
+    <article className={`w-[286px] overflow-hidden rounded-2xl border bg-white transition ${data.emphasis === 'primary' ? 'border-slate-700 shadow-[0_22px_58px_-26px_rgba(15,23,42,.7)] ring-2 ring-slate-900/10' : 'border-slate-200 shadow-[0_18px_50px_-30px_rgba(15,23,42,.55)]'} ${selected ? '!border-violet-600 !ring-4 !ring-violet-500/15' : ''}`}>
+      {data.ports.map((port) => {
+        const position = port.position === 'left' ? Position.Left : port.position === 'right' ? Position.Right : port.position === 'top' ? Position.Top : Position.Bottom
+        const verticalSide = port.position === 'top' || port.position === 'bottom'
+        return <Handle key={port.id} id={port.id} type={port.type} position={position} style={verticalSide ? { left: `${port.top}%` } : { top: `${port.top}%` }} className={`!size-2.5 !border-2 !border-white ${port.type === 'source' ? '!bg-slate-700' : '!bg-slate-400'}`} />
+      })}
       <div className={`h-1.5 ${layer.bar}`} />
       <header className="border-b border-slate-100 p-4">
         <div className="flex items-center justify-between gap-2">
-          <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[.12em] ring-1 ring-inset ${layer.badge}`}>{layer.label}</span>
+          <span className="flex min-w-0 items-center gap-1.5"><span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[.12em] ring-1 ring-inset ${layer.badge}`}>{layer.label}</span>{data.emphasis === 'primary' && <span className="inline-flex items-center gap-1 rounded-full bg-slate-950 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white"><Star size={9} fill="currentColor" />Primary</span>}</span>
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${state.text}`}><span className={`size-1.5 rounded-full ${state.dot}`} />{state.label}</span>
         </div>
         <h3 className="mt-2 font-mono text-sm font-black tracking-tight text-slate-950">{data.entity}</h3>
@@ -97,9 +102,15 @@ function graphPorts(model: CustomerDataModel, layouts: ReturnType<typeof layoutD
     const source = layoutById.get(relationship.source)
     const target = layoutById.get(relationship.target)
     if (!source || !target) continue
-    const forward = source.x < target.x
-    addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: forward ? 'right' : 'left', otherY: target.y })
-    addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: forward ? 'left' : 'right', otherY: source.y })
+    if (source.x === target.x) {
+      const downward = source.y < target.y
+      addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: downward ? 'bottom' : 'top', otherY: target.x })
+      addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: downward ? 'top' : 'bottom', otherY: source.x })
+    } else {
+      const forward = source.x < target.x
+      addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: forward ? 'right' : 'left', otherY: target.y })
+      addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: forward ? 'left' : 'right', otherY: source.y })
+    }
   }
 
   const portsByNode = new Map<string, EntityPort[]>()
@@ -132,6 +143,7 @@ function graphNodes(model: CustomerDataModel): EntityFlowNode[] {
         recordLabel: modelNode.recordLabel,
         layer: modelNode.layer,
         state: modelNode.state,
+        emphasis: modelNode.emphasis,
         fields: modelNode.fields,
         ports: ports.get(modelNode.id) ?? [],
       },
@@ -178,6 +190,7 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
       </header>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3 text-[10px] font-bold text-slate-500 sm:px-7">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-white"><Star size={10} fill="currentColor" />Primary customer record</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-violet-500" />Party master</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-cyan-500" />Identity facts</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" />Customer relationship</span>

@@ -18,7 +18,7 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor in a focused, responsive dialog and includes the change in the submission without disturbing the profile layout.
 - Minimal first-sight forms with supporting explanations, provenance, legal notes and document guidance available through compact information controls. Mandatory evidence uploads and declarations cannot be skipped.
 - Responsive layouts suitable for desktop and mobile demonstrations.
-- An interactive, pan-and-zoom entity graph for every synthetic customer, including canonical Party/Person/Customer records, relationship data, CDD state, risk ratings and scenario-specific evidence, gaps or screening records.
+- An interactive, pan-and-zoom entity graph for every synthetic customer, with the primary customer spine highlighted and records of the same entity type aligned into stable schema columns. It includes canonical Party/Person/Customer records, relationship data, CDD state, risk ratings and scenario-specific evidence, gaps or screening records.
 
 ## Run it
 

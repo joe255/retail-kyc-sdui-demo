@@ -23,39 +23,49 @@ export function estimateEntityNodeHeight(node: DataModelNode) {
   return headerHeight + fieldHeight + 10
 }
 
-function columnForNode(node: DataModelNode, model: CustomerDataModel) {
-  if (node.id === 'party') return 1
-  if (node.id === 'customer') return 2
-  if (node.id === 'risk-rating') return 4
-  if (model.edges.some((relationship) => relationship.source === 'related-party' && relationship.target === node.id)) return 4
-  const parent = model.edges.find((relationship) => relationship.target === node.id)?.source
-  if (parent && model.edges.some((relationship) => relationship.source === 'related-party' && relationship.target === parent)) return 5
-  if (model.edges.some((relationship) => relationship.source === 'party' && relationship.target === node.id)) return 0
-  if (model.edges.some((relationship) => relationship.source === node.id && relationship.target === 'party')) return 0
-  if (model.edges.some((relationship) => relationship.source === 'customer' && relationship.target === node.id)) return 3
-  if (node.layer === 'identity') return 0
-  if (node.layer === 'party') return 1
-  if (node.layer === 'relationship') return 3
-  return 4
+const entityColumn: Record<string, number> = {
+  PERSON: 0,
+  ADDRESS: 0,
+  NATIONALITY: 0,
+  ALTERNATE_NAME: 0,
+  IDENTITY_DOCUMENT: 0,
+  IDENTITY_CHECK: 0,
+  MISSING_DATA_ITEM: 0,
+  WEALTH_EVIDENCE: 0,
+  SCREENING_HIT: 0,
+  PARTY: 1,
+  CUSTOMER: 2,
+  RELATED_PARTY: 2,
+  BUSINESS_RELATIONSHIP: 3,
+  CDD_CHECKLIST: 3,
+  CDD_REVIEW: 3,
+  CDD_DECISION: 3,
+  EDD_FINDING: 3,
+  RISK_RATING: 4,
+}
+
+function columnForNode(node: DataModelNode) {
+  return entityColumn[node.entity] ?? (node.layer === 'identity' ? 0 : node.layer === 'party' ? 1 : node.layer === 'relationship' ? 3 : 4)
 }
 
 export function layoutDataModel(model: CustomerDataModel) {
   const columns = new Map<number, DataModelNode[]>()
   for (const node of model.nodes) {
-    const column = columnForNode(node, model)
+    const column = columnForNode(node)
     columns.set(column, [...(columns.get(column) ?? []), node])
   }
+
+  const emphasisOrder: Record<DataModelNode['emphasis'], number> = { primary: 0, connected: 1, supporting: 2 }
+  for (const [column, nodes] of columns) columns.set(column, [...nodes].sort((left, right) => emphasisOrder[left.emphasis] - emphasisOrder[right.emphasis]))
 
   const columnHeights = new Map<number, number>()
   for (const [column, nodes] of columns) {
     const contentHeight = nodes.reduce((sum, node) => sum + estimateEntityNodeHeight(node), 0)
     columnHeights.set(column, contentHeight + Math.max(0, nodes.length - 1) * DATA_MODEL_NODE_GAP)
   }
-  const graphHeight = Math.max(...columnHeights.values(), 0)
-
   const layouts: DataModelNodeLayout[] = []
   for (const [column, nodes] of columns) {
-    let y = (graphHeight - (columnHeights.get(column) ?? 0)) / 2
+    let y = 0
     for (const node of nodes) {
       const height = estimateEntityNodeHeight(node)
       layouts.push({ id: node.id, column, x: column * DATA_MODEL_COLUMN_GAP, y, width: ENTITY_NODE_WIDTH, height })
