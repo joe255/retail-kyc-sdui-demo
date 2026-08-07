@@ -61,6 +61,27 @@ const entityColumn: Record<string, number> = {
   RISK_RATING: 5,
 }
 
+const entityVerticalOrder: Record<string, number> = {
+  PERSON: 10,
+  ADDRESS: 20,
+  NATIONALITY: 30,
+  ALTERNATE_NAME: 40,
+  IDENTITY_DOCUMENT: 50,
+  IDENTITY_CHECK: 60,
+  EVIDENCE_OBJECT: 70,
+  ASSERTION_EVIDENCE: 80,
+  DATA_ASSERTION: 90,
+  CUSTOMER_ATTESTATION: 100,
+  WEALTH_EVIDENCE: 110,
+  BUSINESS_RELATIONSHIP: 10,
+  CDD_CASE: 20,
+  CDD_REQUIREMENT: 30,
+  DATA_REQUEST: 40,
+  DATA_SUBMISSION: 50,
+  AUDIT_EVENT: 60,
+  CDD_REVIEW: 70,
+}
+
 function columnForNode(node: DataModelNode) {
   return entityColumn[node.entity] ?? (node.layer === 'identity' ? 0 : node.layer === 'party' ? 1 : node.layer === 'relationship' ? 3 : 4)
 }
@@ -73,7 +94,10 @@ export function layoutDataModel(model: CustomerDataModel) {
   }
 
   const emphasisOrder: Record<DataModelNode['emphasis'], number> = { primary: 0, connected: 1, supporting: 2 }
-  for (const [column, nodes] of columns) columns.set(column, [...nodes].sort((left, right) => emphasisOrder[left.emphasis] - emphasisOrder[right.emphasis]))
+  for (const [column, nodes] of columns) columns.set(column, [...nodes].sort((left, right) => (
+    emphasisOrder[left.emphasis] - emphasisOrder[right.emphasis]
+    || (entityVerticalOrder[left.entity] ?? 1_000) - (entityVerticalOrder[right.entity] ?? 1_000)
+  )))
 
   const columnHeights = new Map<number, number>()
   for (const [column, nodes] of columns) {

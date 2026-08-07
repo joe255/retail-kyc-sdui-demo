@@ -1,4 +1,4 @@
-export type ViewMode = 'reviewer' | 'customer' | 'model'
+export type ViewMode = 'reviewer' | 'customer' | 'model' | 'metamodel'
 
 export const viewModePolicy: Record<ViewMode, {
   label: string
@@ -32,6 +32,15 @@ export const viewModePolicy: Record<ViewMode, {
     description: 'Populated entity relationship view',
     showPortfolio: true,
     showInternalCustomerMetadata: true,
+    showInternalPanels: false,
+    showPayloadControls: true,
+    showDemoControls: true,
+  },
+  metamodel: {
+    label: 'Metamodel',
+    description: 'Group-wide entity and handover view',
+    showPortfolio: false,
+    showInternalCustomerMetadata: false,
     showInternalPanels: false,
     showPayloadControls: true,
     showDemoControls: true,

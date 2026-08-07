@@ -29,4 +29,14 @@ describe('role-specific visibility policy', () => {
       showPayloadControls: true,
     })
   })
+
+  it('shows the global metamodel without customer portfolio context', () => {
+    expect(viewModePolicy.metamodel).toMatchObject({
+      showPortfolio: false,
+      showInternalCustomerMetadata: false,
+      showInternalPanels: false,
+      showPayloadControls: true,
+      showDemoControls: true,
+    })
+  })
 })

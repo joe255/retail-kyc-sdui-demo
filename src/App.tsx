@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Braces,
+  Boxes,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -22,17 +23,19 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
-import { getCustomers, getJourney, resetDemo, submitScreen } from './lib/api'
+import { getCustomers, getJourney, getMetaModel, resetDemo, submitScreen } from './lib/api'
 import { customerProgress, statusLabel } from './lib/status'
 import { missingRequiredFields } from './lib/conditions'
 import { viewModePolicy, type ViewMode } from './lib/viewMode'
 import { SduiRenderer } from './sdui/renderer'
 import { DataModelView } from './components/DataModelView'
+import { MetaModelView } from './components/MetaModelView'
 import type {
   CustomerListPayload,
   CustomerStatus,
   CustomerSummary,
   JourneyPayload,
+  MetaModelPayload,
   ResponseState,
   ResponseValue,
 } from './types/sdui'
@@ -118,14 +121,14 @@ function Sidebar({ payload, selectedId, filter, query, onFilter, onQuery, onSele
   )
 }
 
-function PayloadDrawer({ journey, open, onClose }: { journey: JourneyPayload; open: boolean; onClose: () => void }) {
+function PayloadDrawer({ payload, contractVersion, title, open, onClose }: { payload: unknown; contractVersion: string; title: string; open: boolean; onClose: () => void }) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-slate-950/45 backdrop-blur-sm" onMouseDown={onClose}>
       <aside className="flex h-full w-full max-w-2xl flex-col bg-[#07110f] text-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <header className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-6"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300"><Braces size={18} /></div><div><h2 className="text-sm font-bold">Live SDUI payload</h2><p className="text-[11px] text-slate-400">{journey.contractVersion} · delivered by GET /journey</p></div></div><button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10"><X size={18} /></button></header>
-        <div className="border-b border-white/10 bg-emerald-400/5 px-5 py-3 text-xs leading-5 text-emerald-100 sm:px-6">The frontend knows how to render registered component types. It does not contain scenario-specific pages.</div>
-        <pre className="min-h-0 flex-1 overflow-auto p-5 font-mono text-[11px] leading-5 text-slate-300 sm:p-6"><code>{JSON.stringify(journey, null, 2)}</code></pre>
+        <header className="flex items-center justify-between border-b border-white/10 px-5 py-4 sm:px-6"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300"><Braces size={18} /></div><div><h2 className="text-sm font-bold">{title}</h2><p className="text-[11px] text-slate-400">{contractVersion} · delivered by the unified app server</p></div></div><button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl bg-white/5 text-slate-300 hover:bg-white/10"><X size={18} /></button></header>
+        <div className="border-b border-white/10 bg-emerald-400/5 px-5 py-3 text-xs leading-5 text-emerald-100 sm:px-6">The frontend renders this server-owned contract without customer-specific page code.</div>
+        <pre className="min-h-0 flex-1 overflow-auto p-5 font-mono text-[11px] leading-5 text-slate-300 sm:p-6"><code>{JSON.stringify(payload, null, 2)}</code></pre>
       </aside>
     </div>
   )
@@ -141,6 +144,7 @@ function ViewModeSwitch({ mode, onChange }: { mode: ViewMode; onChange: (mode: V
       <button type="button" aria-pressed={mode === 'reviewer'} onClick={() => onChange('reviewer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'reviewer' ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><UserRoundCheck size={15} /><span className="hidden sm:inline">Reviewer</span></button>
       <button type="button" aria-pressed={mode === 'customer'} onClick={() => onChange('customer')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'customer' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Eye size={15} /><span className="hidden sm:inline">Customer</span></button>
       <button type="button" aria-pressed={mode === 'model'} onClick={() => onChange('model')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'model' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Database size={15} /><span className="hidden sm:inline">Data model</span></button>
+      <button type="button" aria-pressed={mode === 'metamodel'} onClick={() => onChange('metamodel')} className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold transition sm:px-3 ${mode === 'metamodel' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><Boxes size={15} /><span className="hidden sm:inline">Metamodel</span></button>
     </div>
   )
 }
@@ -148,6 +152,7 @@ function ViewModeSwitch({ mode, onChange }: { mode: ViewMode; onChange: (mode: V
 function App() {
   const [list, setList] = useState<CustomerListPayload | null>(null)
   const [journey, setJourney] = useState<JourneyPayload | null>(null)
+  const [metaModel, setMetaModel] = useState<MetaModelPayload | null>(null)
   const [selectedId, setSelectedId] = useState('')
   const [currentScreen, setCurrentScreen] = useState(0)
   const [responses, setResponses] = useState<ResponseState>({})
@@ -167,6 +172,10 @@ function App() {
       const first = payload.customers.find((customer) => customer.status === 'action_required') ?? payload.customers[0]
       if (first) setSelectedId(first.id)
     }).catch((reason: Error) => setError(reason.message))
+  }, [])
+
+  useEffect(() => {
+    getMetaModel().then(setMetaModel).catch((reason: Error) => setError(reason.message))
   }, [])
 
   useEffect(() => {
@@ -239,7 +248,7 @@ function App() {
     setSidebarOpen(false)
   }
 
-  if (!list || !journey || !screen) {
+  if (!list || !journey || !screen || !metaModel) {
     if (error) return <div className="grid min-h-screen place-items-center bg-slate-100 p-8"><div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-xl"><CircleAlert className="mx-auto text-rose-600" size={32} /><h1 className="mt-4 text-xl font-black">The demo API is unavailable</h1><p className="mt-2 text-sm leading-6 text-slate-500">Run <code className="rounded bg-slate-100 px-1.5 py-0.5">npm run dev</code> to start both the backend and Vite.</p></div></div>
     return <LoadingScreen />
   }
@@ -253,7 +262,7 @@ function App() {
             {viewPolicy.showPortfolio && <button type="button" onClick={() => setSidebarOpen(true)} className="grid size-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden"><Menu size={19} /></button>}
             {!viewPolicy.showPortfolio && <div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-xl bg-slate-950 text-emerald-300"><Sparkles size={17} /></div><span className="hidden text-sm font-black sm:inline">Northstar</span></div>}
             <div className="hidden h-6 w-px bg-slate-200 sm:block" />
-            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">{viewMode === 'reviewer' ? 'Reviewer workspace' : viewMode === 'model' ? 'Populated data model' : 'Secure customer review'}</p></div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold uppercase tracking-[.12em] text-slate-400">{viewMode === 'metamodel' ? 'Northstar group' : journey.customer.bookingEntity}</p><p className="truncate text-sm font-bold text-slate-800">{viewMode === 'reviewer' ? 'Reviewer workspace' : viewMode === 'model' ? 'Populated data model' : viewMode === 'metamodel' ? 'Retail KYC metamodel' : 'Secure customer review'}</p></div>
           </div>
           <div className="flex items-center gap-2">
             {viewPolicy.showDemoControls && <span className="hidden items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.1em] text-violet-700 xl:inline-flex"><Sparkles size={12} /> Synthetic data</span>}
@@ -264,6 +273,13 @@ function App() {
         </header>
 
         <div className={`mx-auto w-full px-4 py-6 sm:px-6 sm:py-8 xl:px-10 ${viewMode === 'customer' ? 'max-w-5xl' : 'max-w-7xl'}`}>
+          {viewMode === 'metamodel' ? <>
+            <section className="relative overflow-hidden rounded-[2rem] bg-[#07110f] p-5 text-white shadow-[0_32px_80px_-48px_rgba(2,20,15,.9)] sm:p-7 lg:p-8">
+              <div className="absolute -right-16 -top-24 size-64 rounded-full bg-violet-400/15 blur-3xl" /><div className="absolute bottom-0 right-1/3 size-32 rounded-full bg-amber-400/10 blur-3xl" />
+              <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"><div><span className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-[11px] font-bold text-violet-200 ring-1 ring-white/10"><Boxes size={13} /> Group-wide structure</span><p className="mt-5 text-xs font-bold uppercase tracking-[.14em] text-amber-300">Retail-only canonical model</p><h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">How customer data crosses ownership boundaries</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Core records stay owned by one area. Mixed-color entities make the handover between reusable group facts, booking-entity relationships and evidence controls explicit.</p></div><div className="grid grid-cols-2 gap-2 text-[10px] font-bold sm:grid-cols-4 lg:w-[480px]"><span className="rounded-xl bg-violet-400/10 px-3 py-2 text-violet-200 ring-1 ring-violet-300/15">Party master</span><span className="rounded-xl bg-cyan-400/10 px-3 py-2 text-cyan-200 ring-1 ring-cyan-300/15">Identity facts</span><span className="rounded-xl bg-emerald-400/10 px-3 py-2 text-emerald-200 ring-1 ring-emerald-300/15">Customer relationship</span><span className="rounded-xl bg-amber-400/10 px-3 py-2 text-amber-200 ring-1 ring-amber-300/15">CDD and evidence</span></div></div>
+            </section>
+            <MetaModelView model={metaModel} />
+          </> : <>
           <section className="relative overflow-hidden rounded-[2rem] bg-[#07110f] p-5 text-white shadow-[0_32px_80px_-48px_rgba(2,20,15,.9)] sm:p-7 lg:p-8">
             <div className="absolute -right-16 -top-24 size-64 rounded-full bg-emerald-400/15 blur-3xl" /><div className="absolute bottom-0 right-1/3 size-32 rounded-full bg-cyan-400/10 blur-3xl" />
             <div className="relative grid gap-7 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -293,10 +309,11 @@ function App() {
               <section className="rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-700 p-5 text-white shadow-lg shadow-indigo-600/15"><UsersRound size={20} className="text-violet-200" /><p className="mt-3 text-sm font-bold">Group fact, local decision</p><p className="mt-1.5 text-xs leading-5 text-violet-100">Identity evidence can be reused with provenance. Risk and customer acceptance stay with {journey.customer.bookingEntity}.</p></section>
             </aside>}
           </div>}
+          </>}
         </div>
       </main>
 
-      <PayloadDrawer journey={journey} open={payloadOpen && viewPolicy.showPayloadControls} onClose={() => setPayloadOpen(false)} />
+      <PayloadDrawer payload={viewMode === 'metamodel' ? metaModel : journey} contractVersion={viewMode === 'metamodel' ? metaModel.contractVersion : journey.contractVersion} title={viewMode === 'metamodel' ? 'Live metamodel payload' : 'Live SDUI payload'} open={payloadOpen && viewPolicy.showPayloadControls} onClose={() => setPayloadOpen(false)} />
       {toast && <div className="fixed bottom-6 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-2xl"><CheckCircle2 className="text-emerald-400" size={18} />{toast}</div>}
       {selectedSummary && <span className="sr-only">Selected scenario: {selectedSummary.scenario}</span>}
     </div>

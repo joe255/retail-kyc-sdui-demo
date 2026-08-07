@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import path from 'node:path'
 import express from 'express'
 import { customers } from './data/customers'
 import { buildCustomerDataModel } from './data/dataModel'
+import { buildMetaModel } from './data/metaModel'
 import { missingRequiredFields } from '../src/lib/conditions'
 import type {
   ComponentCatalogEntry,
@@ -16,7 +18,7 @@ import type {
 
 const app = express()
 const port = Number(process.env.PORT ?? 8787)
-const contractVersion = 'retail-kyc-sdui/1.4'
+const contractVersion = 'retail-kyc-sdui/1.5'
 
 type StoredSubmission = {
   receipt: SubmissionReceipt
@@ -140,6 +142,10 @@ app.get('/api/v1/components', (_request, response) => {
   response.json({ contractVersion, components: componentCatalog })
 })
 
+app.get('/api/v1/metamodel', (_request, response) => {
+  response.json(buildMetaModel(contractVersion))
+})
+
 app.get('/api/v1/customers', (_request, response) => {
   const statusCounts: Record<CustomerStatus, number> = {
     action_required: 0,
@@ -241,12 +247,35 @@ app.post('/api/v1/demo/reset', (_request, response) => {
   response.json({ reset: true, resetAt: new Date().toISOString() })
 })
 
-const distPath = path.resolve(process.cwd(), 'dist')
-if (existsSync(distPath)) {
-  app.use(express.static(distPath))
-  app.get('*path', (_request, response) => response.sendFile(path.join(distPath, 'index.html')))
+app.use('/api', (_request, response) => {
+  response.status(404).json({ error: 'api_route_not_found' })
+})
+
+async function startServer() {
+  const httpServer = createHttpServer(app)
+  const development = process.argv.includes('--dev')
+  const distPath = path.resolve(process.cwd(), 'dist')
+  const indexPath = path.join(distPath, 'index.html')
+
+  if (development) {
+    const { createServer: createViteServer } = await import('vite')
+    const vite = await createViteServer({
+      appType: 'spa',
+      server: { middlewareMode: true, hmr: { server: httpServer } },
+    })
+    app.use(vite.middlewares)
+  } else {
+    if (!existsSync(indexPath)) throw new Error('Frontend build not found. Run npm run build before npm start.')
+    app.use(express.static(distPath))
+    app.get('*path', (_request, response) => response.sendFile(indexPath))
+  }
+
+  httpServer.listen(port, () => {
+    console.log(`Retail KYC SDUI app and API listening on http://localhost:${port}`)
+  })
 }
 
-app.listen(port, () => {
-  console.log(`Retail KYC SDUI API listening on http://localhost:${port}`)
+startServer().catch((error: unknown) => {
+  console.error(error)
+  process.exitCode = 1
 })

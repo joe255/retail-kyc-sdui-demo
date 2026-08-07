@@ -12,7 +12,7 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - 14 reusable SDUI component types including verified fields, evidence upload, declarations, structured addresses, source conflict resolution, party relationships, editable customer-visible profile data and transaction-profile review.
 - Group-wide identity facts separated from booking-entity customer decisions.
 - Dynamic multi-screen journeys, backend submissions and next-screen receipts.
-- An explicit Reviewer/Customer/Data model switch: present both sides of the journey, then inspect the selected customer's populated group-level entities and relationships.
+- An explicit Reviewer/Customer/Data model/Metamodel switch: present both sides of the journey, inspect the selected customer's populated records, then show the group-wide entity types and ownership handovers.
 - A live JSON drawer showing the exact payload rendered on screen.
 - Backend-defined conditional visibility and explicit required-field validation; backend defaults never count as customer answers, and Continue remains disabled until every visible mandatory response is complete.
 - A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor in a focused, responsive dialog and includes the change in the submission without disturbing the profile layout.
@@ -30,11 +30,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. The command starts:
-
-- Vite on port `5173`.
-- The SDUI API on port `8787`.
-- A Vite development proxy from `/api` to the backend.
+Open <http://localhost:8787>. Express owns the only exposed port and mounts Vite as development middleware, so the frontend, API, assets, hot-module updates and SPA fallback all share the same origin.
 
 For a production-style local run:
 
@@ -43,18 +39,19 @@ npm run build
 npm start
 ```
 
-Then open <http://localhost:8787>. Express serves both the API and the generated Vite assets.
+Then open <http://localhost:8787>. Express requires and serves the generated Vite assets together with the API. `npm start` fails fast when `dist/index.html` is missing instead of exposing an API-only process by accident.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Retail customer"] --> B["React + Tailwind renderer"]
-    B --> C["SDUI component registry"]
-    B <--> D["Express journey API"]
-    D --> E["Scenario and policy definitions"]
-    D --> F["Submission receipts"]
-    E --> G["Canonical KYC model concepts"]
+    A["Browser · port 8787"] <--> B["Express app server"]
+    B --> C["Vite middleware in dev\nStatic dist in production"]
+    C --> D["React + Tailwind renderer"]
+    D --> E["SDUI component registry"]
+    B --> F["Journey + metamodel API"]
+    F --> G["Scenario, policy and canonical KYC definitions"]
+    F --> H["Submission receipts"]
 ```
 
 The important boundary is between the renderer and the journey definition:
@@ -86,6 +83,7 @@ Select the customer scenario in Reviewer view, then switch to Customer view to d
 |---|---|---|
 | `GET` | `/api/health` | Runtime health and scenario count |
 | `GET` | `/api/v1/components` | Registered component catalogue and data-model targets |
+| `GET` | `/api/v1/metamodel` | Four-domain retail KYC metamodel, cross-cutting entities and relationships |
 | `GET` | `/api/v1/customers` | Synthetic portfolio summaries and status totals |
 | `GET` | `/api/v1/customers/:id/journey` | Full SDUI journey for one retail customer |
 | `POST` | `/api/v1/customers/:id/submissions` | Accept a screen response and return the next screen |
@@ -107,7 +105,7 @@ An abbreviated journey response looks like this:
 
 ```json
 {
-  "contractVersion": "retail-kyc-sdui/1.4",
+  "contractVersion": "retail-kyc-sdui/1.5",
   "syntheticData": true,
   "customer": {
     "id": "amira-haddad",
@@ -191,6 +189,17 @@ Temporal fields intentionally separate three different meanings:
 - **Control schedule**: when evidence, a requirement, a source assessment or the complete customer relationship must next be reviewed.
 
 The populated graph shows representative records from each chain, while the typed fields and foreign keys make the model suitable for multiple assertions and evidence objects per retail customer. The customer-visible profile keeps the screen uncluttered: its evidence source, last-update date and next scheduled review appear behind the information control for each editable fact.
+
+## Metamodel view
+
+The fourth view removes customer-instance values and shows the reusable retail schema in four ownership areas:
+
+- **Party master** owns canonical parties, aliases and group-level party identity.
+- **Identity facts** owns person attributes, addresses, assertions and reusable identity evidence.
+- **Customer relationship** owns the booking-entity customer, products, attestations and authenticated submissions.
+- **CDD and evidence** owns cases, requirements, requests, checks, risk, decisions, gaps and audit controls.
+
+A single-color entity belongs to one area. A mixed-color entity is deliberately cross-cutting: for example `DATA_ASSERTION` bridges Party and Identity, `RELATED_PARTY` bridges Party and Customer relationship, and `EVIDENCE_OBJECT`, `CUSTOMER_ATTESTATION`, `RISK_RATING` and `AUDIT_EVENT` make control handovers explicit.
 
 The demo deliberately follows the rule: **collect and verify reusable identity facts once, but retain risk, acceptance and restriction decisions for the responsible booking entity and relationship.**
 

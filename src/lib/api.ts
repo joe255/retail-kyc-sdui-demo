@@ -1,4 +1,4 @@
-import type { CustomerListPayload, JourneyPayload, ResponseState, SubmissionReceipt } from '../types/sdui'
+import type { CustomerListPayload, JourneyPayload, MetaModelPayload, ResponseState, SubmissionReceipt } from '../types/sdui'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -19,6 +19,8 @@ export const getCustomers = () => api<CustomerListPayload>('/api/v1/customers')
 
 export const getJourney = (customerId: string) =>
   api<JourneyPayload>(`/api/v1/customers/${customerId}/journey`)
+
+export const getMetaModel = () => api<MetaModelPayload>('/api/v1/metamodel')
 
 export const submitScreen = (customerId: string, screenId: string, values: ResponseState) => {
   const serializableValues = Object.fromEntries(

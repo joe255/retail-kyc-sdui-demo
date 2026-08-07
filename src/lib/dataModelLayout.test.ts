@@ -55,4 +55,21 @@ describe('data model graph layout', () => {
       }
     }
   })
+
+  it('does not route same-column relationships behind another entity card', () => {
+    for (const customer of customers) {
+      const model = buildCustomerDataModel(customer)
+      const layouts = layoutDataModel(model)
+      const layoutById = new Map(layouts.map((record) => [record.id, record]))
+      for (const edge of model.edges) {
+        const source = layoutById.get(edge.source)!
+        const target = layoutById.get(edge.target)!
+        if (source.column !== target.column) continue
+        const top = Math.min(source.y, target.y)
+        const bottom = Math.max(source.y, target.y)
+        const blockers = layouts.filter((record) => record.column === source.column && record.id !== source.id && record.id !== target.id && record.y > top && record.y < bottom)
+        expect(blockers.map((record) => record.id), `${customer.id}: ${edge.id} passes behind another card`).toEqual([])
+      }
+    }
+  })
 })

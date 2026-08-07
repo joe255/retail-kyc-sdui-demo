@@ -321,3 +321,38 @@ export interface SubmissionReceipt {
   receivedAt: string
   nextScreenId: string | null
 }
+
+export type MetaModelDomainId = 'party' | 'identity' | 'relationship' | 'assurance'
+
+export interface MetaModelDomain {
+  id: MetaModelDomainId
+  label: string
+  description: string
+  order: number
+}
+
+export interface MetaModelEntity {
+  id: string
+  name: string
+  purpose: string
+  primaryDomain: MetaModelDomainId
+  domains: MetaModelDomainId[]
+  keyFields: string[]
+  temporalFields: string[]
+}
+
+export interface MetaModelRelationship {
+  id: string
+  source: string
+  target: string
+  label: string
+  cardinality: string
+}
+
+export interface MetaModelPayload {
+  contractVersion: string
+  generatedAt: string
+  domains: MetaModelDomain[]
+  entities: MetaModelEntity[]
+  relationships: MetaModelRelationship[]
+}
