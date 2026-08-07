@@ -14,6 +14,64 @@ const nationalityByCustomer: Record<string, string> = {
   'clara-rossi': 'Italian', 'jakob-stein': 'German', 'lea-horvat': 'Croatian', 'karim-aziz': 'Dutch',
 }
 
+const DEMO_TODAY = '2026-08-07'
+const monthNumber: Record<string, string> = {
+  Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+  Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+}
+
+const materialEventByCustomer: Record<string, string> = {
+  'emma-berger': '2026-07-28', 'lukas-weber': '2026-08-06', 'sofia-marin': '2026-07-21', 'amira-haddad': '2026-06-18',
+  'daniel-novak': '2026-08-06', 'helena-vogt': '2026-08-07', 'victor-santos': '2026-08-06', 'noah-klein': '2026-08-06',
+  'anna-max': '2026-08-06', 'elias-petrov': '2026-08-05', 'mia-fischer': '2026-08-06', 'oliver-dubois': '2026-08-06',
+  'clara-rossi': '2026-08-06', 'jakob-stein': '2026-07-31', 'lea-horvat': '2026-08-05', 'karim-aziz': '2026-08-02',
+}
+
+function addDays(isoDate: string, days: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+function addYears(isoDate: string, years: number) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`)
+  date.setUTCFullYear(date.getUTCFullYear() + years)
+  return date.toISOString().slice(0, 10)
+}
+
+function completedReviewDate(customer: CustomerScenario) {
+  if (customer.lastReview === 'Initial onboarding') return /^\d{4}$/.test(customer.relationshipSince) ? `${customer.relationshipSince}-01-01` : DEMO_TODAY
+  const [day, month, year] = customer.lastReview.split(' ')
+  return `${year}-${monthNumber[month]}-${day.padStart(2, '0')}`
+}
+
+function actionDueDate(customer: CustomerScenario) {
+  if (customer.status === 'complete') return null
+  const dueIn = customer.dueLabel.match(/Due in (\d+) days/)
+  const overdueBy = customer.dueLabel.match(/Overdue by (\d+) days/)
+  if (dueIn) return addDays(DEMO_TODAY, Number(dueIn[1]))
+  if (overdueBy) return addDays(DEMO_TODAY, -Number(overdueBy[1]))
+  if (customer.dueLabel === 'Due today' || customer.dueLabel === 'Onboarding paused') return DEMO_TODAY
+  if (customer.dueLabel === 'Usually within 24 hours') return addDays(DEMO_TODAY, 1)
+  if (customer.dueLabel === 'Operations review') return addDays(DEMO_TODAY, 2)
+  if (customer.dueLabel === 'One holder remaining') return addDays(DEMO_TODAY, 3)
+  return DEMO_TODAY
+}
+
+function buildTimeline(customer: CustomerScenario): CustomerDataModel['timeline'] {
+  const lastReviewCompletedAt = completedReviewDate(customer)
+  const reviewIntervalYears = customer.risk === 'High' ? 1 : 5
+  return {
+    lastCustomerUpdateAt: lastReviewCompletedAt,
+    lastEvidenceVerifiedAt: lastReviewCompletedAt,
+    lastReviewCompletedAt,
+    lastMaterialEventAt: materialEventByCustomer[customer.id] ?? lastReviewCompletedAt,
+    nextActionDueAt: actionDueDate(customer),
+    nextPeriodicReviewDueAt: addYears(lastReviewCompletedAt, reviewIntervalYears),
+    nextAction: customer.nextAction,
+  }
+}
+
 const node = (
   id: string,
   entity: string,
@@ -182,14 +240,53 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
   const partyId = `PTY-${customer.id.toUpperCase()}`
   const customerId = `CUS-${customer.id.toUpperCase()}`
   const relationshipId = `REL-${customer.id.toUpperCase()}`
+  const onboardedOn = /^\d{4}$/.test(customer.relationshipSince) ? `${customer.relationshipSince}-01-01` : DEMO_TODAY
   const cddState: DataModelFieldState = customer.status === 'complete' ? 'verified' : customer.status === 'action_required' ? 'missing' : 'pending'
   const dueDiligence = customer.risk === 'High' ? 'enhanced' : customer.risk === 'Low' ? 'simplified' : 'standard'
+  const timeline = buildTimeline(customer)
+  const evidenceStatus = customer.id === 'lukas-weber' ? 'expiring' : customer.id === 'clara-rossi' ? 'verification failed' : 'current'
+  const evidenceState: DataModelFieldState = evidenceStatus === 'current' ? 'verified' : 'pending'
+  const evidenceValidUntil = customer.id === 'lukas-weber'
+    ? '2026-08-18'
+    : customer.id === 'clara-rossi'
+      ? 'not accepted'
+      : addYears(timeline.lastEvidenceVerifiedAt, 5)
+  const evidenceType = customer.age < 18 ? 'birth certificate' : market === 'DE' ? 'German identity card' : market === 'AT' ? 'Austrian identity card' : 'EU passport'
+  const sourceName = customer.age < 18 ? 'Civil register extract' : `${country} public authority document`
+  const caseState: DataModelFieldState = customer.status === 'complete' ? 'verified' : customer.status === 'action_required' ? 'missing' : 'pending'
+  const caseStatus = customer.status === 'complete' ? 'closed · completed' : customer.status === 'under_review' ? 'customer response under review' : customer.status === 'restricted' ? 'open · restricted' : 'open · awaiting customer'
+  const requirementStatus = customer.status === 'complete' ? 'completed' : customer.status === 'under_review' ? 'submitted' : customer.status === 'restricted' ? 'blocked' : 'open'
+  const reviewInterval = customer.risk === 'High' ? '1 year · high risk' : '5 years · low or standard risk'
 
   const nodes: DataModelNode[] = [
+    node('data-source', 'DATA_SOURCE', sourceName, 'assurance', evidenceState, [
+      id('source_id', `SRC-${customer.id.toUpperCase()}`, 'PK'), value('source_name', sourceName), value('source_type', 'state-issued identity evidence'),
+      value('is_public_authority', 'true'), value('reputation_note', 'authoritative issuer'), value('assessed_on', timeline.lastEvidenceVerifiedAt),
+      value('reassessment_due', timeline.nextPeriodicReviewDueAt), value('assessed_by', 'Group KYC evidence policy'),
+    ]),
+    node('evidence-object', 'EVIDENCE_OBJECT', `Primary evidence · ${evidenceType}`, 'assurance', evidenceState, [
+      id('evidence_id', `EVD-${customer.id.toUpperCase()}`, 'PK'), id('party_id', partyId, 'FK'), id('source_id', `SRC-${customer.id.toUpperCase()}`, 'FK'),
+      value('evidence_type', evidenceType), value('status', evidenceStatus, evidenceState), value('issued_at', addYears(timeline.lastEvidenceVerifiedAt, -5)),
+      value('received_at', timeline.lastEvidenceVerifiedAt), value('verified_at', timeline.lastEvidenceVerifiedAt, evidenceState), value('valid_until', evidenceValidUntil, evidenceState),
+      value('retention_until', addYears(timeline.nextPeriodicReviewDueAt, 5)), value('storage_ref', `vault://${customer.id}/primary-identity`),
+      value('integrity_hash', `sha256:${customer.id.slice(0, 8)}…synthetic`),
+    ]),
+    node('data-assertion', 'DATA_ASSERTION', 'Canonical birth-date assertion', 'identity', 'verified', [
+      id('assertion_id', `AST-${customer.id.toUpperCase()}-DOB`, 'PK'), id('party_id', partyId, 'FK'), value('attribute_path', 'PERSON.birth_date'),
+      value('normalised_value', `${2026 - customer.age}-03-14`), value('assertion_status', 'current'), value('effective_from', onboardedOn),
+      value('recorded_at', onboardedOn), value('last_confirmed_at', timeline.lastCustomerUpdateAt), value('next_review_due', timeline.nextPeriodicReviewDueAt),
+      value('supersedes_assertion_id', 'null'),
+    ]),
+    node('assertion-evidence', 'ASSERTION_EVIDENCE', 'Birth date supported by primary evidence', 'assurance', evidenceState, [
+      id('link_id', `AE-${customer.id.toUpperCase()}-DOB`, 'PK'), id('assertion_id', `AST-${customer.id.toUpperCase()}-DOB`, 'FK'),
+      id('evidence_id', `EVD-${customer.id.toUpperCase()}`, 'FK'), value('support_type', 'direct documentary support'),
+      value('sufficiency_decision', evidenceStatus === 'current' ? 'sufficient' : 'refresh required', evidenceState),
+      value('assessed_at', timeline.lastEvidenceVerifiedAt), value('assessed_by', 'Retail identity verification service'),
+    ]),
     node('party', 'PARTY', 'Canonical group party', 'party', 'verified', [
       id('party_id', partyId, 'PK'), value('party_type', 'person'),
       value('pep_status', customer.id === 'helena-vogt' ? 'potential PEP' : 'not a PEP', customer.id === 'helena-vogt' ? 'pending' : 'verified'),
-      value('first_known_on', `${customer.relationshipSince}-01-01`), value('merged_into_party_id', customer.id === 'lea-horvat' ? '— canonical record —' : 'null'),
+      value('first_known_on', onboardedOn), value('merged_into_party_id', customer.id === 'lea-horvat' ? '— canonical record —' : 'null'),
     ], 'primary'),
     node('person', 'PERSON', primaryPersonName, 'identity', 'verified', [
       id('party_id', partyId, 'PK/FK'), value('given_name', givenName), value('family_name', familyParts.join(' ')),
@@ -205,11 +302,11 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
     ]),
     node('customer', 'CUSTOMER', customer.bookingEntity, 'relationship', customer.status === 'complete' ? 'verified' : 'current', [
       id('customer_id', customerId, 'PK'), id('party_id', partyId, 'FK'), value('booking_entity', customer.bookingEntity),
-      value('booking_entity_country', market), value('status', customer.status), value('due_diligence_level', dueDiligence), value('onboarded_on', `${customer.relationshipSince}-01-01`),
+      value('booking_entity_country', market), value('status', customer.status), value('due_diligence_level', dueDiligence), value('onboarded_on', onboardedOn),
     ], 'primary'),
     node('business-relationship', 'BUSINESS_RELATIONSHIP', customer.product, 'relationship', 'current', [
       id('relationship_id', relationshipId, 'PK'), id('customer_id', customerId, 'FK'), value('product_or_service', customer.product),
-      value('engagement_type', 'ongoing relationship'), value('why_customer_wants_it', customer.scenario), value('occupation_or_sector', customer.id === 'mia-fischer' ? 'Data analyst · pending refresh' : 'Employed professional'), value('opened_on', `${customer.relationshipSince}-01-01`),
+      value('engagement_type', 'ongoing relationship'), value('why_customer_wants_it', customer.scenario), value('occupation_or_sector', customer.id === 'mia-fischer' ? 'Data analyst · pending refresh' : 'Employed professional'), value('opened_on', onboardedOn),
     ], 'primary'),
     node('cdd-checklist', 'CDD_CHECKLIST', 'Current completion state', 'assurance', cddState, [
       id('customer_id', customerId, 'PK/FK'), value('identity_of_customer', 'verified'),
@@ -222,15 +319,83 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
       id('rating_id', `RISK-${customer.id.toUpperCase()}`, 'PK'), id('customer_id', customerId, 'FK'), id('relationship_id', relationshipId, 'FK'),
       value('risk', customer.risk.toLowerCase()), value('due_diligence_level', dueDiligence), value('model_version', 'retail-amlr-2026.2'), value('factors', customer.tags.join(', ')),
     ]),
+    node('customer-attestation', 'CUSTOMER_ATTESTATION', 'Latest customer confirmation', 'assurance', 'verified', [
+      id('attestation_id', `ATT-${customer.id.toUpperCase()}`, 'PK'), id('customer_id', customerId, 'FK'), id('party_id', partyId, 'FK'),
+      value('statement_version', 'retail-profile-confirmation/2.1'), value('asserted_scope', 'identity, contact, tax and relationship profile'),
+      value('response', 'confirmed or corrected'), value('signed_at', timeline.lastCustomerUpdateAt), value('authenticated_by', 'strong customer authentication'),
+      value('channel', 'secure web review'), value('next_confirmation_due', timeline.nextPeriodicReviewDueAt),
+    ]),
+    node('review-cycle', 'CDD_REVIEW', 'Current periodic review cycle', 'assurance', customer.status === 'complete' ? 'verified' : 'current', [
+      id('review_id', `REV-${customer.id.toUpperCase()}-CYCLE`, 'PK'), id('customer_id', customerId, 'FK'), value('triggered_by', 'risk-based schedule'),
+      value('last_completed_at', timeline.lastReviewCompletedAt), value('next_due', timeline.nextPeriodicReviewDueAt), value('interval_basis', reviewInterval),
+      value('last_outcome', 'CDD retained or refreshed'), value('performed_by', 'Responsible booking entity'),
+    ]),
+    node('cdd-case', 'CDD_CASE', customer.scenario, 'assurance', caseState, [
+      id('case_id', `CASE-${customer.id.toUpperCase()}-2026`, 'PK'), id('customer_id', customerId, 'FK'), value('case_type', 'retail KYC review'),
+      value('trigger', customer.scenario), value('status', caseStatus, caseState), value('opened_at', timeline.lastMaterialEventAt),
+      value('due_at', timeline.nextActionDueAt ?? 'completed', caseState), value('closed_at', customer.status === 'complete' ? timeline.lastReviewCompletedAt : 'null'),
+      value('responsible_entity', customer.bookingEntity),
+    ]),
+    node('cdd-requirement', 'CDD_REQUIREMENT', customer.nextAction, 'assurance', caseState, [
+      id('requirement_id', `REQ-${customer.id.toUpperCase()}-01`, 'PK'), id('case_id', `CASE-${customer.id.toUpperCase()}-2026`, 'FK'),
+      value('requirement_type', customer.scenario), value('target_ref', customer.status === 'complete' ? 'profile confirmation' : 'current SDUI journey'),
+      value('reason', customer.tags.join(', ')), value('status', requirementStatus, caseState), value('raised_at', timeline.lastMaterialEventAt),
+      value('due_at', timeline.nextActionDueAt ?? 'completed', caseState), value('completed_at', customer.status === 'complete' ? timeline.lastCustomerUpdateAt : 'null'),
+      value('blocking', customer.status === 'restricted' ? 'true' : 'false', caseState),
+    ]),
+    node('data-request', 'DATA_REQUEST', 'Customer-facing data request', 'assurance', caseState, [
+      id('request_id', `DRQ-${customer.id.toUpperCase()}-01`, 'PK'), id('case_id', `CASE-${customer.id.toUpperCase()}-2026`, 'FK'),
+      id('requirement_id', `REQ-${customer.id.toUpperCase()}-01`, 'FK'), value('request_scope', customer.nextAction),
+      value('requested_at', timeline.lastMaterialEventAt), value('due_at', timeline.nextActionDueAt ?? 'completed'), value('channel', 'SDUI secure review'),
+      value('status', customer.status === 'complete' ? 'completed' : customer.status === 'under_review' ? 'answered' : 'awaiting response', caseState),
+    ]),
+    node('data-submission', 'DATA_SUBMISSION', 'Latest authenticated response', 'assurance', customer.status === 'action_required' ? 'current' : caseState, [
+      id('submission_id', `SUB-${customer.id.toUpperCase()}-LATEST`, 'PK'), id('request_id', `DRQ-${customer.id.toUpperCase()}-01`, 'FK'),
+      id('customer_id', customerId, 'FK'), value('submitted_by_party_id', partyId), value('submission_type', 'customer confirmation and evidence'),
+      value('submitted_at', customer.status === 'action_required' ? timeline.lastCustomerUpdateAt : timeline.lastMaterialEventAt),
+      value('channel', 'secure web review'), value('authentication_context', 'SCA session'),
+      value('status', customer.status === 'under_review' ? 'accepted for review' : customer.status === 'complete' ? 'accepted' : 'previous accepted submission'),
+    ]),
+    node('audit-event', 'AUDIT_EVENT', 'Latest material KYC event', 'assurance', 'current', [
+      id('event_id', `AUD-${customer.id.toUpperCase()}-LATEST`, 'PK'), id('party_id', partyId, 'FK'), id('customer_id', customerId, 'FK'),
+      value('event_type', customer.scenario), value('occurred_at', timeline.lastMaterialEventAt), value('actor_type', customer.status === 'under_review' ? 'customer' : 'system or customer'),
+      value('channel', 'retail KYC service'), value('case_ref', `CASE-${customer.id.toUpperCase()}-2026`), value('correlation_id', `corr-${customer.id}-2026`),
+      value('previous_value_ref', 'prior immutable assertion'), value('new_value_ref', customer.status === 'complete' ? 'accepted current assertion' : 'pending review result'),
+    ]),
   ]
 
   const edges: DataModelEdge[] = [
+    edge('data-source', 'evidence-object', 'issued or supplied', '1 : 0..*'),
+    edge('evidence-object', 'assertion-evidence', 'supports through', '1 : 0..*'),
+    edge('data-assertion', 'assertion-evidence', 'is evidenced by', '1 : 0..*'),
     edge('party', 'person', 'if an individual', '1 : 0..1'), edge('party', 'address', 'lives at', '1 : 0..*'),
-    edge('party', 'nationality', 'holds', '1 : 0..*'), edge('party', 'customer', 'becomes', '1 : 0..*'),
+    edge('party', 'nationality', 'holds', '1 : 0..*'), edge('party', 'data-assertion', 'has asserted fact', '1 : 0..*'), edge('party', 'customer', 'becomes', '1 : 0..*'),
     edge('customer', 'business-relationship', 'holds', '1 : 0..*'), edge('customer', 'cdd-checklist', 'measured by', '1 : 1'),
+    edge('customer', 'customer-attestation', 'confirmed through', '1 : 0..*'), edge('customer', 'review-cycle', 'reviewed on', '1 : 0..*'),
+    edge('customer', 'cdd-case', 'has review case', '1 : 0..*'), edge('cdd-case', 'cdd-requirement', 'contains', '1 : 1..*'),
+    edge('cdd-requirement', 'data-request', 'served as', '1 : 0..*'), edge('data-request', 'data-submission', 'answered by', '1 : 0..*'),
+    edge('data-submission', 'audit-event', 'recorded as', '1 : 1'),
     edge('business-relationship', 'risk-rating', 'rated', '1 : 0..*'),
   ]
 
   const scenario = scenarioRecords(customer, partyId, customerId)
-  return { partyId, customerId, generatedAt: '2026-08-07T00:00:00.000Z', nodes: [...nodes, ...scenario.nodes], edges: [...edges, ...scenario.edges] }
+  const allNodes = [...nodes, ...scenario.nodes]
+  const evidenceNodes = allNodes.filter((record) => ['EVIDENCE_OBJECT', 'IDENTITY_DOCUMENT', 'IDENTITY_CHECK', 'WEALTH_EVIDENCE', 'CUSTOMER_ATTESTATION'].includes(record.entity))
+  const evidenceSummary = evidenceNodes.reduce<CustomerDataModel['evidenceSummary']>((summary, record) => {
+    const status = record.fields.find((field) => field.name === 'status')?.value
+    if (status === 'expiring') summary.expiring += 1
+    else if (record.state === 'missing') summary.missing += 1
+    else if (record.state === 'pending') summary.pending += 1
+    else summary.current += 1
+    return summary
+  }, { current: 0, expiring: 0, pending: 0, missing: 0 })
+  return {
+    partyId,
+    customerId,
+    generatedAt: '2026-08-07T00:00:00.000Z',
+    timeline,
+    evidenceSummary,
+    nodes: allNodes,
+    edges: [...edges, ...scenario.edges],
+  }
 }

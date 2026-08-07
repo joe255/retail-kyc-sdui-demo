@@ -322,6 +322,14 @@ function profileValue(field: ProfileOverviewComponent['sections'][number]['field
   return typeof response === 'string' ? response : field.value
 }
 
+function profileEvidenceText(field: ProfileOverviewComponent['sections'][number]['fields'][number]) {
+  return [
+    field.evidence && `Evidence: ${field.evidence}`,
+    field.lastUpdatedAt && `Last updated: ${field.lastUpdatedAt}`,
+    field.nextReviewDueAt && `Next scheduled review: ${field.nextReviewDueAt}`,
+  ].filter(Boolean).join(' · ')
+}
+
 function ProfileOverview({ component, responses, onChange }: { component: ProfileOverviewComponent; responses: ResponseState; onChange: RendererProps['onChange'] }) {
   const [open, setOpen] = useState(!component.collapsedByDefault)
   const [editing, setEditing] = useState<string | null>(null)
@@ -382,7 +390,7 @@ function ProfileOverview({ component, responses, onChange }: { component: Profil
             const fieldId = field.editComponent.fieldId
             const changed = savedFields.has(fieldId)
             const isEditing = editing === fieldId
-            return <div key={fieldId} className={`-mx-2 rounded-xl px-2 py-3 first:pt-0 last:pb-0 ${isEditing ? 'bg-emerald-50/70 ring-1 ring-emerald-100' : ''}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><p className="text-[11px] font-semibold text-slate-500">{field.label}</p>{field.verified && <BadgeCheck className="text-emerald-600" size={13} />}{changed && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-700">Changed</span>}</div><p className="mt-0.5 break-words text-sm font-bold text-slate-900">{profileValue(field, responses)}</p>{field.source && <p className="mt-1 text-[10px] text-slate-400">{field.source}</p>}</div><button type="button" onClick={() => startEdit(field)} aria-label={`Edit ${field.label}`} className={`inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition ${isEditing ? 'border-emerald-300 bg-white text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'}`}><Pencil size={11} />{isEditing ? 'Editing' : 'Edit'}</button></div></div>
+            return <div key={fieldId} className={`-mx-2 rounded-xl px-2 py-3 first:pt-0 last:pb-0 ${isEditing ? 'bg-emerald-50/70 ring-1 ring-emerald-100' : ''}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><p className="text-[11px] font-semibold text-slate-500">{field.label}</p>{field.verified && <BadgeCheck className="text-emerald-600" size={13} />}{changed && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-violet-700">Changed</span>}</div><p className="mt-0.5 break-words text-sm font-bold text-slate-900">{profileValue(field, responses)}</p>{field.source && <p className="mt-1 flex items-center gap-0.5 text-[10px] text-slate-400"><span>{field.source}</span>{profileEvidenceText(field) && <InfoTooltip text={profileEvidenceText(field)} label="Evidence and update history" />}</p>}</div><button type="button" onClick={() => startEdit(field)} aria-label={`Edit ${field.label}`} className={`inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition ${isEditing ? 'border-emerald-300 bg-white text-emerald-700' : 'border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'}`}><Pencil size={11} />{isEditing ? 'Editing' : 'Edit'}</button></div></div>
           })}</div></div>)}</div>
         </div>}
       </section>
@@ -397,6 +405,8 @@ function ProfileOverview({ component, responses, onChange }: { component: Profil
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                 <span>Currently on file: <strong className="font-semibold text-slate-700">{editingField.value}</strong></span>
                 {editingField.source && <span>Source: {editingField.source}</span>}
+                {editingField.lastUpdatedAt && <span>Updated: {editingField.lastUpdatedAt}</span>}
+                {editingField.nextReviewDueAt && <span>Next review: {editingField.nextReviewDueAt}</span>}
                 {editingField.verified && <span className="inline-flex items-center gap-1 font-semibold text-emerald-700"><BadgeCheck size={13} /> Verified</span>}
               </div>
             </div>

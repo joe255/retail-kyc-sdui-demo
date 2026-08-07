@@ -18,7 +18,8 @@ The frontend contains a registry of reusable UI components. It does **not** cont
 - A collapsed “Other information we have about you” component on every first screen. Every fact has an Edit action that opens its backend-defined SDUI editor in a focused, responsive dialog and includes the change in the submission without disturbing the profile layout.
 - Minimal first-sight forms with supporting explanations, provenance, legal notes and document guidance available through compact information controls. Mandatory evidence uploads and declarations cannot be skipped.
 - Responsive layouts suitable for desktop and mobile demonstrations.
-- An interactive, pan-and-zoom entity graph for every synthetic customer, with the primary customer spine highlighted and records of the same entity type aligned into stable schema columns. It includes canonical Party/Person/Customer records, relationship data, CDD state, risk ratings and scenario-specific evidence, gaps or screening records.
+- An interactive, pan-and-zoom entity graph for every synthetic customer, with the primary customer spine highlighted and records of the same entity type aligned into stable schema columns. It includes canonical Party/Person/Customer records, field-level assertions, evidence provenance, customer attestations, review cases, requirements, requests, submissions, audit events, CDD state, risk ratings and scenario-specific records.
+- A compact evidence and review chronology for every customer: last customer update, last evidence verification, last completed CDD review, the due date of the current action and the next risk-based periodic review.
 
 ## Run it
 
@@ -106,7 +107,7 @@ An abbreviated journey response looks like this:
 
 ```json
 {
-  "contractVersion": "retail-kyc-sdui/1.1",
+  "contractVersion": "retail-kyc-sdui/1.4",
   "syntheticData": true,
   "customer": {
     "id": "amira-haddad",
@@ -171,6 +172,25 @@ An abbreviated journey response looks like this:
 | Expected activity | `BUSINESS_RELATIONSHIP`, entity-scoped `RISK_RATING` |
 | Verification fallback | `IDENTITY_CHECK`, `CDD_REQUIREMENT` |
 | Screen sequence | `CDD_CASE`, `CDD_REQUIREMENT`, `DATA_REQUEST` |
+
+## Evidence and temporal completeness
+
+The original retail graph contained current customer facts and selected documents, but four important chains were only implied. They are now materialised for every synthetic customer:
+
+| Previously missing | Records now included | Important dates and controls |
+|---|---|---|
+| Field-level provenance | `DATA_ASSERTION`, `DATA_SOURCE`, `EVIDENCE_OBJECT`, `ASSERTION_EVIDENCE` | Effective from, recorded at, received at, verified at, valid until, source reassessment due and retention until |
+| Customer-supplied evidence | `CUSTOMER_ATTESTATION`, `DATA_SUBMISSION` | Authenticated party, statement version, channel, signed/submitted at and next confirmation due |
+| Review orchestration | `CDD_REVIEW`, `CDD_CASE`, `CDD_REQUIREMENT`, `DATA_REQUEST` | Last completed review, risk-based next review, trigger/opened time, current-action due time and completion time |
+| Immutable change history | `AUDIT_EVENT` plus assertion supersession references | Material event time, actor, channel, correlation/case references and previous/new value references |
+
+Temporal fields intentionally separate three different meanings:
+
+- **Business validity**: when a fact or document is effective and when it ceases to be valid.
+- **System knowledge**: when the group received, recorded and verified the information.
+- **Control schedule**: when evidence, a requirement, a source assessment or the complete customer relationship must next be reviewed.
+
+The populated graph shows representative records from each chain, while the typed fields and foreign keys make the model suitable for multiple assertions and evidence objects per retail customer. The customer-visible profile keeps the screen uncluttered: its evidence source, last-update date and next scheduled review appear behind the information control for each editable fact.
 
 The demo deliberately follows the rule: **collect and verify reusable identity facts once, but retain risk, acceptance and restriction decisions for the responsible booking entity and relationship.**
 

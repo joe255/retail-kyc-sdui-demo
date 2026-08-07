@@ -173,6 +173,9 @@ export interface ProfileOverviewComponent extends BaseComponent {
       value: string
       verified?: boolean
       source?: string
+      evidence?: string
+      lastUpdatedAt?: string
+      nextReviewDueAt?: string
       editComponent: ProfileEditComponent
     }>
   }>
@@ -291,6 +294,21 @@ export interface CustomerDataModel {
   partyId: string
   customerId: string
   generatedAt: string
+  timeline: {
+    lastCustomerUpdateAt: string
+    lastEvidenceVerifiedAt: string
+    lastReviewCompletedAt: string
+    lastMaterialEventAt: string
+    nextActionDueAt: string | null
+    nextPeriodicReviewDueAt: string
+    nextAction: string
+  }
+  evidenceSummary: {
+    current: number
+    expiring: number
+    pending: number
+    missing: number
+  }
   nodes: DataModelNode[]
   edges: DataModelEdge[]
 }

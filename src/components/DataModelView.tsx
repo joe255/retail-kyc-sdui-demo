@@ -15,7 +15,7 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { BadgeCheck, CircleAlert, CircleDashed, Database, GitBranch, KeyRound, Link2, Star } from 'lucide-react'
+import { BadgeCheck, CalendarClock, CircleAlert, CircleDashed, Database, FileCheck2, GitBranch, History, KeyRound, Link2, Star } from 'lucide-react'
 import { layoutDataModel, routeDataModelEdges } from '../lib/dataModelLayout'
 import type { CustomerDataModel, DataModelFieldState, DataModelLayer } from '../types/sdui'
 
@@ -68,6 +68,17 @@ function StateIcon({ state }: { state?: DataModelFieldState }) {
   return null
 }
 
+function FieldIcon({ name, state }: { name: string; state?: DataModelFieldState }) {
+  if (state && state !== 'current') return <StateIcon state={state} />
+  if (/(?:^|_)(?:at|on|from|until|due|date)$/.test(name)) return <CalendarClock className="shrink-0 text-sky-500" size={13} />
+  return null
+}
+
+function displayDate(date: string | null) {
+  if (!date) return 'No open action'
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${date}T00:00:00.000Z`))
+}
+
 function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
   const layer = layerStyle[data.layer]
   const state = stateStyle[data.state]
@@ -89,7 +100,7 @@ function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
       </header>
       <dl className="divide-y divide-slate-100 px-4 py-1">
         {data.fields.map((field) => <div key={`${field.name}-${field.value}`} className={`grid grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] gap-3 py-2 ${field.state === 'missing' ? 'bg-rose-50/60' : field.state === 'pending' ? 'bg-amber-50/50' : ''}`}>
-          <dt className="flex min-w-0 items-center gap-1.5 font-mono text-[9px] font-bold text-slate-500"><StateIcon state={field.state} /><span className="truncate" title={field.name}>{field.name}</span>{field.key && <span className="ml-auto inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 font-sans text-[8px] font-black text-slate-500"><KeyRound size={8} />{field.key}</span>}</dt>
+          <dt className="flex min-w-0 items-center gap-1.5 font-mono text-[9px] font-bold text-slate-500"><FieldIcon name={field.name} state={field.state} /><span className="truncate" title={field.name}>{field.name}</span>{field.key && <span className="ml-auto inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 font-sans text-[8px] font-black text-slate-500"><KeyRound size={8} />{field.key}</span>}</dt>
           <dd className={`break-words text-right text-[10px] font-bold leading-4 ${field.state === 'missing' ? 'text-rose-700' : field.state === 'pending' ? 'text-amber-800' : 'text-slate-900'}`}>{field.value}</dd>
         </div>)}
       </dl>
@@ -141,8 +152,8 @@ function graphPorts(model: CustomerDataModel, layouts: ReturnType<typeof layoutD
     if (!source || !target) continue
     if (source.x === target.x) {
       const downward = source.y < target.y
-      addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: downward ? 'bottom' : 'top', otherY: target.x })
-      addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: downward ? 'top' : 'bottom', otherY: source.x })
+      addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: downward ? 'bottom' : 'top', otherY: target.y })
+      addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: downward ? 'top' : 'bottom', otherY: source.y })
     } else {
       const forward = source.x < target.x
       addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: forward ? 'right' : 'left', otherY: target.y })
@@ -214,6 +225,13 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
   const nodes = useMemo(() => graphNodes(model), [model])
   const edges = useMemo(() => graphEdges(model), [model])
   const openItems = model.nodes.filter((item) => item.state === 'missing' || item.state === 'pending').length
+  const timelineItems = [
+    { label: 'Customer last updated', value: displayDate(model.timeline.lastCustomerUpdateAt), detail: 'Authenticated customer change or confirmation' },
+    { label: 'Evidence last verified', value: displayDate(model.timeline.lastEvidenceVerifiedAt), detail: 'Latest accepted supporting evidence' },
+    { label: 'Review last completed', value: displayDate(model.timeline.lastReviewCompletedAt), detail: 'Booking-entity CDD decision point' },
+    { label: 'Next required action', value: displayDate(model.timeline.nextActionDueAt), detail: model.timeline.nextAction },
+    { label: 'Next periodic review', value: displayDate(model.timeline.nextPeriodicReviewDueAt), detail: 'Risk-based review backstop' },
+  ]
 
   return (
     <section className="mt-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_80px_-60px_rgba(15,23,42,.65)]">
@@ -237,6 +255,21 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" />CDD and evidence</span>
         <span className="ml-auto hidden items-center gap-1 text-slate-400 sm:inline-flex"><Link2 size={12} />Pan or zoom to inspect</span>
       </div>
+
+      <section className="border-b border-slate-200 bg-white px-5 py-4 sm:px-7" aria-label="Evidence and review chronology">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-xl bg-sky-50 text-sky-700"><History size={15} /></span><div><h3 className="text-xs font-black text-slate-900">Evidence and review chronology</h3><p className="text-[10px] text-slate-500">Effective, recorded and next-due dates remain distinct.</p></div></div>
+          <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700"><FileCheck2 size={11} />{model.evidenceSummary.current} current</span>
+            {model.evidenceSummary.expiring > 0 && <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{model.evidenceSummary.expiring} expiring</span>}
+            {model.evidenceSummary.pending > 0 && <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700">{model.evidenceSummary.pending} pending</span>}
+            {model.evidenceSummary.missing > 0 && <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">{model.evidenceSummary.missing} missing</span>}
+          </div>
+        </div>
+        <div className="mt-3 grid gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-2 xl:grid-cols-5">
+          {timelineItems.map((item, index) => <div key={item.label} className="min-w-0 bg-slate-50 px-3 py-3"><p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[.11em] text-slate-400"><CalendarClock size={10} />{item.label}</p><p className={`mt-1 text-xs font-black ${index === 3 && model.timeline.nextActionDueAt ? 'text-amber-800' : 'text-slate-900'}`}>{item.value}</p><p className="mt-0.5 truncate text-[9px] text-slate-500" title={item.detail}>{item.detail}</p></div>)}
+        </div>
+      </section>
 
       <div className="h-[720px] bg-[#f8faf9]">
         <ReactFlow

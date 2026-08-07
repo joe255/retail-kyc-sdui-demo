@@ -7,6 +7,7 @@ import { buildCustomerDataModel } from './data/dataModel'
 import { missingRequiredFields } from '../src/lib/conditions'
 import type {
   ComponentCatalogEntry,
+  CustomerDataModel,
   CustomerListPayload,
   CustomerStatus,
   JourneyPayload,
@@ -15,7 +16,7 @@ import type {
 
 const app = express()
 const port = Number(process.env.PORT ?? 8787)
-const contractVersion = 'retail-kyc-sdui/1.3'
+const contractVersion = 'retail-kyc-sdui/1.4'
 
 type StoredSubmission = {
   receipt: SubmissionReceipt
@@ -48,7 +49,7 @@ const nationalityByCustomer: Record<string, string> = {
   'clara-rossi': 'Italian', 'jakob-stein': 'German', 'lea-horvat': 'Croatian', 'karim-aziz': 'Dutch',
 }
 
-function customerVisibleProfile(customer: (typeof customers)[number]) {
+function customerVisibleProfile(customer: (typeof customers)[number], timeline: CustomerDataModel['timeline']) {
   const market = customer.bookingEntity.slice(-2)
   const countryCode = market === 'AT' ? 'AT' : market === 'DE' ? 'DE' : 'NL'
   const countryName = market === 'AT' ? 'Austria' : market === 'DE' ? 'Germany' : 'Netherlands'
@@ -63,7 +64,7 @@ function customerVisibleProfile(customer: (typeof customers)[number]) {
     : market === 'DE'
       ? { country: 'DE', street: 'Alsterufer', houseNumber: '17', postcode: '20354', city: 'Hamburg', region: 'Hamburg' }
       : { country: 'NL', street: 'Prinsengracht', houseNumber: '248', postcode: '1016 HG', city: 'Amsterdam', region: 'North Holland' }
-  return {
+  const profile = {
     id: `${customer.id}-profile-overview`,
     type: 'profile_overview' as const,
     title: 'Other information we have about you',
@@ -100,6 +101,22 @@ function customerVisibleProfile(customer: (typeof customers)[number]) {
         ],
       },
     ],
+  }
+  return {
+    ...profile,
+    sections: profile.sections.map((section) => ({
+      ...section,
+      fields: section.fields.map((field) => ({
+        ...field,
+        evidence: field.label === 'Legal name' || field.label === 'Date of birth' || field.label === 'Nationality'
+          ? 'State-issued identity evidence linked through ASSERTION_EVIDENCE'
+          : field.label === 'Tax residency'
+            ? 'Authenticated customer tax declaration'
+            : 'Authenticated customer attestation and audit event',
+        lastUpdatedAt: timeline.lastCustomerUpdateAt,
+        nextReviewDueAt: timeline.nextPeriodicReviewDueAt,
+      })),
+    })),
   }
 }
 
@@ -153,10 +170,12 @@ app.get('/api/v1/customers/:customerId/journey', (request, response) => {
     return
   }
 
+  const dataModel = buildCustomerDataModel(customer)
+
   const customerJourney = {
     ...customer,
     screens: customer.screens.map((screen, index) => index === 0
-      ? { ...screen, components: [...screen.components, customerVisibleProfile(customer)] }
+      ? { ...screen, components: [...screen.components, customerVisibleProfile(customer, dataModel.timeline)] }
       : screen),
   }
 
@@ -170,7 +189,7 @@ app.get('/api/v1/customers/:customerId/journey', (request, response) => {
       description: `${customer.screens.length} server-defined screen${customer.screens.length === 1 ? '' : 's'} for ${customer.bookingEntity}.`,
       dataBoundary: 'Group identity facts are reusable; CDD status and decisions remain booking-entity specific.',
     },
-    dataModel: buildCustomerDataModel(customer),
+    dataModel,
   }
   response.json(payload)
 })
@@ -190,8 +209,9 @@ app.post('/api/v1/customers/:customerId/submissions', (request, response) => {
     return
   }
 
+  const timeline = buildCustomerDataModel(customer).timeline
   const submissionScreen = screenIndex === 0
-    ? { ...customer.screens[screenIndex], components: [...customer.screens[screenIndex].components, customerVisibleProfile(customer)] }
+    ? { ...customer.screens[screenIndex], components: [...customer.screens[screenIndex].components, customerVisibleProfile(customer, timeline)] }
     : customer.screens[screenIndex]
   const missingFields = missingRequiredFields(submissionScreen, values as Record<string, string | boolean | null>)
   if (missingFields.length) {
