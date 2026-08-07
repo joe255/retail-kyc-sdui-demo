@@ -13,6 +13,13 @@ export type DataModelNodeLayout = {
   height: number
 }
 
+export type DataModelEdgeLane = {
+  edgeId: string
+  corridor: string
+  orientation: 'horizontal' | 'vertical'
+  laneFraction: number
+}
+
 export function estimateEntityNodeHeight(node: DataModelNode) {
   const headerHeight = 100
   const fieldHeight = node.fields.reduce((total, field) => {
@@ -73,4 +80,47 @@ export function layoutDataModel(model: CustomerDataModel) {
     }
   }
   return layouts
+}
+
+/**
+ * Allocates one routing lane per relationship inside each column corridor.
+ * React Flow's built-in smooth-step edge uses a shared midpoint, which makes
+ * unrelated edges collapse into the same visual trunk. Stable, unique lane
+ * fractions keep those paths individually traceable.
+ */
+export function routeDataModelEdges(
+  model: CustomerDataModel,
+  layouts = layoutDataModel(model),
+): DataModelEdgeLane[] {
+  const layoutById = new Map(layouts.map((layout) => [layout.id, layout]))
+  const corridors = new Map<string, CustomerDataModel['edges']>()
+
+  for (const edge of model.edges) {
+    const source = layoutById.get(edge.source)
+    const target = layoutById.get(edge.target)
+    if (!source || !target) continue
+    const corridor = source.column === target.column
+      ? `vertical:${source.column}`
+      : `horizontal:${Math.min(source.column, target.column)}:${Math.max(source.column, target.column)}`
+    corridors.set(corridor, [...(corridors.get(corridor) ?? []), edge])
+  }
+
+  const lanes: DataModelEdgeLane[] = []
+  for (const [corridor, corridorEdges] of corridors) {
+    const orientation = corridor.startsWith('vertical:') ? 'vertical' : 'horizontal'
+    const ordered = [...corridorEdges].sort((left, right) => {
+      const leftSource = layoutById.get(left.source)!
+      const rightSource = layoutById.get(right.source)!
+      const leftTarget = layoutById.get(left.target)!
+      const rightTarget = layoutById.get(right.target)!
+      return leftSource.y - rightSource.y || leftTarget.y - rightTarget.y || left.id.localeCompare(right.id)
+    })
+    ordered.forEach((edge, index) => lanes.push({
+      edgeId: edge.id,
+      corridor,
+      orientation,
+      laneFraction: (index + 1) / (ordered.length + 1),
+    }))
+  }
+  return lanes
 }

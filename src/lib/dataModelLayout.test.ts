@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { customers } from '../../server/data/customers'
 import { buildCustomerDataModel } from '../../server/data/dataModel'
-import { DATA_MODEL_NODE_GAP, layoutDataModel } from './dataModelLayout'
+import { DATA_MODEL_NODE_GAP, layoutDataModel, routeDataModelEdges } from './dataModelLayout'
 
 describe('data model graph layout', () => {
   it('packs every customer model without overlapping entity cards', () => {
@@ -38,6 +38,21 @@ describe('data model graph layout', () => {
         columnsByEntity.set(node.entity, columns)
       }
       expect([...columnsByEntity.values()].every((columns) => columns.size === 1), customer.id).toBe(true)
+    }
+  })
+
+  it('assigns every relationship a unique lane within its routing corridor', () => {
+    for (const customer of customers) {
+      const lanes = routeDataModelEdges(buildCustomerDataModel(customer))
+      const lanesByCorridor = new Map<string, number[]>()
+      for (const lane of lanes) {
+        expect(lane.laneFraction).toBeGreaterThan(0)
+        expect(lane.laneFraction).toBeLessThan(1)
+        lanesByCorridor.set(lane.corridor, [...(lanesByCorridor.get(lane.corridor) ?? []), lane.laneFraction])
+      }
+      for (const [corridor, fractions] of lanesByCorridor) {
+        expect(new Set(fractions).size, `${customer.id}: duplicated lane in ${corridor}`).toBe(fractions.length)
+      }
     }
   })
 })

@@ -1,19 +1,22 @@
 import { useMemo } from 'react'
 import {
+  BaseEdge,
   Background,
   BackgroundVariant,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { BadgeCheck, CircleAlert, CircleDashed, Database, GitBranch, KeyRound, Link2, Star } from 'lucide-react'
-import { layoutDataModel } from '../lib/dataModelLayout'
+import { layoutDataModel, routeDataModelEdges } from '../lib/dataModelLayout'
 import type { CustomerDataModel, DataModelFieldState, DataModelLayer } from '../types/sdui'
 
 type EntityPort = {
@@ -34,6 +37,14 @@ type EntityNodeData = {
 } & Record<string, unknown>
 
 type EntityFlowNode = Node<EntityNodeData, 'entity'>
+
+type RoutedEdgeData = {
+  label: string
+  laneFraction: number
+  orientation: 'horizontal' | 'vertical'
+} & Record<string, unknown>
+
+type RoutedFlowEdge = Edge<RoutedEdgeData, 'routed'>
 
 const layerStyle: Record<DataModelLayer, { badge: string; bar: string; label: string }> = {
   identity: { badge: 'bg-cyan-50 text-cyan-700 ring-cyan-200', bar: 'bg-cyan-500', label: 'Identity' },
@@ -87,6 +98,32 @@ function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
 }
 
 const nodeTypes = { entity: EntityCard }
+
+function RoutedEdge({ id, sourceX, sourceY, targetX, targetY, markerEnd, style, data }: EdgeProps<RoutedFlowEdge>) {
+  const laneFraction = data?.laneFraction ?? 0.5
+  const horizontal = data?.orientation !== 'vertical'
+  const laneX = Math.min(sourceX, targetX) + Math.abs(targetX - sourceX) * laneFraction
+  const laneY = Math.min(sourceY, targetY) + Math.abs(targetY - sourceY) * laneFraction
+  const path = horizontal
+    ? `M ${sourceX} ${sourceY} L ${laneX} ${sourceY} L ${laneX} ${targetY} L ${targetX} ${targetY}`
+    : `M ${sourceX} ${sourceY} L ${sourceX} ${laneY} L ${targetX} ${laneY} L ${targetX} ${targetY}`
+  const labelX = horizontal ? (sourceX + laneX) / 2 : sourceX
+  const labelY = horizontal ? sourceY : (sourceY + laneY) / 2
+
+  return <>
+    <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
+    <EdgeLabelRenderer>
+      <div
+        className="pointer-events-none nodrag nopan absolute rounded-full bg-white/95 px-2 py-1 text-[10px] font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/70"
+        style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+      >
+        {data?.label}
+      </div>
+    </EdgeLabelRenderer>
+  </>
+}
+
+const edgeTypes = { routed: RoutedEdge }
 
 type PendingPort = Omit<EntityPort, 'top'> & { otherY: number }
 
@@ -151,23 +188,26 @@ function graphNodes(model: CustomerDataModel): EntityFlowNode[] {
   })
 }
 
-function graphEdges(model: CustomerDataModel): Edge[] {
-  return model.edges.map((modelEdge, index) => ({
-    id: modelEdge.id,
-    source: modelEdge.source,
-    target: modelEdge.target,
-    sourceHandle: `source-${modelEdge.id}`,
-    targetHandle: `target-${modelEdge.id}`,
-    label: `${modelEdge.label}  ·  ${modelEdge.cardinality}`,
-    type: 'smoothstep',
-    pathOptions: { borderRadius: 12, offset: 30 + (index % 5) * 9 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 16, height: 16 },
-    style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-    labelStyle: { fill: '#475569', fontSize: 10, fontWeight: 700 },
-    labelBgStyle: { fill: '#ffffff', fillOpacity: 0.92 },
-    labelBgPadding: [6, 3],
-    labelBgBorderRadius: 8,
-  }))
+function graphEdges(model: CustomerDataModel): RoutedFlowEdge[] {
+  const laneByEdge = new Map(routeDataModelEdges(model).map((lane) => [lane.edgeId, lane]))
+  return model.edges.map((modelEdge) => {
+    const lane = laneByEdge.get(modelEdge.id)
+    return {
+      id: modelEdge.id,
+      source: modelEdge.source,
+      target: modelEdge.target,
+      sourceHandle: `source-${modelEdge.id}`,
+      targetHandle: `target-${modelEdge.id}`,
+      type: 'routed',
+      data: {
+        label: `${modelEdge.label}  ·  ${modelEdge.cardinality}`,
+        laneFraction: lane?.laneFraction ?? 0.5,
+        orientation: lane?.orientation ?? 'horizontal',
+      },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 16, height: 16 },
+      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+    }
+  })
 }
 
 export function DataModelView({ model, customerName }: { model: CustomerDataModel; customerName: string }) {
@@ -203,6 +243,7 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ padding: 0.12, maxZoom: 0.85 }}
           minZoom={0.25}
