@@ -8,7 +8,7 @@ describe('populated customer data models', () => {
       const model = buildCustomerDataModel(customer)
       const nodeIds = new Set(model.nodes.map((node) => node.id))
       expect(model.nodes.length, customer.id).toBeGreaterThanOrEqual(9)
-      expect(model.edges.length, customer.id).toBeGreaterThanOrEqual(9)
+      expect(model.edges.length, customer.id).toBeGreaterThanOrEqual(8)
       expect(model.nodes.every((node) => node.fields.length > 0), customer.id).toBe(true)
       expect(model.nodes.every((node) => node.fields.every((field) => field.name && field.value)), customer.id).toBe(true)
       expect(model.edges.every((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)), customer.id).toBe(true)
@@ -32,5 +32,18 @@ describe('populated customer data models', () => {
     expect(entitiesFor('victor-santos')).toContain('SCREENING_HIT')
     expect(entitiesFor('elias-petrov')).toContain('WEALTH_EVIDENCE')
     expect(entitiesFor('karim-aziz')).toContain('ALTERNATE_NAME')
+  })
+
+  it('materialises connected people as Party and Person records', () => {
+    const noahModel = buildCustomerDataModel(customers.find((customer) => customer.id === 'noah-klein')!)
+    expect(noahModel.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ entity: 'RELATED_PARTY', recordLabel: expect.stringContaining('Eva Klein') }),
+      expect.objectContaining({ entity: 'PARTY', recordLabel: expect.stringContaining('Eva Klein') }),
+      expect.objectContaining({ entity: 'PERSON', recordLabel: 'Eva Klein' }),
+    ]))
+    expect(noahModel.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'related-party', target: 'connected-party' }),
+      expect.objectContaining({ source: 'connected-party', target: 'connected-person' }),
+    ]))
   })
 })

@@ -13,7 +13,15 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { BadgeCheck, CircleAlert, CircleDashed, Database, GitBranch, KeyRound, Link2 } from 'lucide-react'
+import { layoutDataModel } from '../lib/dataModelLayout'
 import type { CustomerDataModel, DataModelFieldState, DataModelLayer } from '../types/sdui'
+
+type EntityPort = {
+  id: string
+  type: 'source' | 'target'
+  position: 'left' | 'right'
+  top: number
+}
 
 type EntityNodeData = {
   entity: string
@@ -21,6 +29,7 @@ type EntityNodeData = {
   layer: DataModelLayer
   state: DataModelFieldState
   fields: CustomerDataModel['nodes'][number]['fields']
+  ports: EntityPort[]
 } & Record<string, unknown>
 
 type EntityFlowNode = Node<EntityNodeData, 'entity'>
@@ -52,7 +61,7 @@ function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
   const state = stateStyle[data.state]
   return (
     <article className={`w-[286px] overflow-hidden rounded-2xl border bg-white shadow-[0_18px_50px_-30px_rgba(15,23,42,.55)] transition ${selected ? 'border-slate-900 ring-4 ring-slate-900/10' : 'border-slate-200'}`}>
-      <Handle type="target" position={Position.Left} className="!size-2.5 !border-2 !border-white !bg-slate-400" />
+      {data.ports.map((port) => <Handle key={port.id} id={port.id} type={port.type} position={port.position === 'left' ? Position.Left : Position.Right} style={{ top: `${port.top}%` }} className={`!size-2.5 !border-2 !border-white ${port.type === 'source' ? '!bg-slate-700' : '!bg-slate-400'}`} />)}
       <div className={`h-1.5 ${layer.bar}`} />
       <header className="border-b border-slate-100 p-4">
         <div className="flex items-center justify-between gap-2">
@@ -68,44 +77,78 @@ function EntityCard({ data, selected }: NodeProps<EntityFlowNode>) {
           <dd className={`break-words text-right text-[10px] font-bold leading-4 ${field.state === 'missing' ? 'text-rose-700' : field.state === 'pending' ? 'text-amber-800' : 'text-slate-900'}`}>{field.value}</dd>
         </div>)}
       </dl>
-      <Handle type="source" position={Position.Right} className="!size-2.5 !border-2 !border-white !bg-slate-700" />
     </article>
   )
 }
 
 const nodeTypes = { entity: EntityCard }
-const layerX: Record<DataModelLayer, number> = { party: 0, identity: 360, relationship: 720, assurance: 1080 }
+
+type PendingPort = Omit<EntityPort, 'top'> & { otherY: number }
+
+function graphPorts(model: CustomerDataModel, layouts: ReturnType<typeof layoutDataModel>) {
+  const layoutById = new Map(layouts.map((layout) => [layout.id, layout]))
+  const sides = new Map<string, PendingPort[]>()
+  const addPort = (nodeId: string, port: PendingPort) => {
+    const sideKey = `${nodeId}:${port.position}`
+    sides.set(sideKey, [...(sides.get(sideKey) ?? []), port])
+  }
+
+  for (const relationship of model.edges) {
+    const source = layoutById.get(relationship.source)
+    const target = layoutById.get(relationship.target)
+    if (!source || !target) continue
+    const forward = source.x < target.x
+    addPort(relationship.source, { id: `source-${relationship.id}`, type: 'source', position: forward ? 'right' : 'left', otherY: target.y })
+    addPort(relationship.target, { id: `target-${relationship.id}`, type: 'target', position: forward ? 'left' : 'right', otherY: source.y })
+  }
+
+  const portsByNode = new Map<string, EntityPort[]>()
+  for (const [sideKey, pending] of sides) {
+    const nodeId = sideKey.slice(0, sideKey.lastIndexOf(':'))
+    const ordered = [...pending].sort((left, right) => left.otherY - right.otherY)
+    const ports = ordered.map((port, index) => ({
+      id: port.id,
+      type: port.type,
+      position: port.position,
+      top: 24 + ((index + 1) * 64) / (ordered.length + 1),
+    }))
+    portsByNode.set(nodeId, [...(portsByNode.get(nodeId) ?? []), ...ports])
+  }
+  return portsByNode
+}
 
 function graphNodes(model: CustomerDataModel): EntityFlowNode[] {
-  const groups = new Map<DataModelLayer, CustomerDataModel['nodes']>()
-  for (const modelNode of model.nodes) groups.set(modelNode.layer, [...(groups.get(modelNode.layer) ?? []), modelNode])
-  const maxRows = Math.max(...Array.from(groups.values(), (items) => items.length))
+  const layouts = layoutDataModel(model)
+  const layoutById = new Map(layouts.map((layout) => [layout.id, layout]))
+  const ports = graphPorts(model, layouts)
   return model.nodes.map((modelNode) => {
-    const group = groups.get(modelNode.layer) ?? []
-    const index = group.findIndex((item) => item.id === modelNode.id)
-    const offset = ((maxRows - group.length) * 145)
+    const layout = layoutById.get(modelNode.id)
     return {
       id: modelNode.id,
       type: 'entity',
-      position: { x: layerX[modelNode.layer], y: offset + index * 300 },
+      position: { x: layout?.x ?? 0, y: layout?.y ?? 0 },
       data: {
         entity: modelNode.entity,
         recordLabel: modelNode.recordLabel,
         layer: modelNode.layer,
         state: modelNode.state,
         fields: modelNode.fields,
+        ports: ports.get(modelNode.id) ?? [],
       },
     }
   })
 }
 
 function graphEdges(model: CustomerDataModel): Edge[] {
-  return model.edges.map((modelEdge) => ({
+  return model.edges.map((modelEdge, index) => ({
     id: modelEdge.id,
     source: modelEdge.source,
     target: modelEdge.target,
+    sourceHandle: `source-${modelEdge.id}`,
+    targetHandle: `target-${modelEdge.id}`,
     label: `${modelEdge.label}  ·  ${modelEdge.cardinality}`,
     type: 'smoothstep',
+    pathOptions: { borderRadius: 12, offset: 30 + (index % 5) * 9 },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b', width: 16, height: 16 },
     style: { stroke: '#94a3b8', strokeWidth: 1.5 },
     labelStyle: { fill: '#475569', fontSize: 10, fontWeight: 700 },
@@ -139,7 +182,7 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-cyan-500" />Identity facts</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500" />Customer relationship</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500" />CDD and evidence</span>
-        <span className="ml-auto hidden items-center gap-1 text-slate-400 sm:inline-flex"><Link2 size={12} />Drag, pan or zoom to inspect</span>
+        <span className="ml-auto hidden items-center gap-1 text-slate-400 sm:inline-flex"><Link2 size={12} />Pan or zoom to inspect</span>
       </div>
 
       <div className="h-[720px] bg-[#f8faf9]">
@@ -151,6 +194,7 @@ export function DataModelView({ model, customerName }: { model: CustomerDataMode
           fitViewOptions={{ padding: 0.12, maxZoom: 0.85 }}
           minZoom={0.25}
           maxZoom={1.5}
+          nodesDraggable={false}
           nodesConnectable={false}
           deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}

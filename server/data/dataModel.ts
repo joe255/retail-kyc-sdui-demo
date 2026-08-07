@@ -87,16 +87,34 @@ function scenarioRecords(customer: CustomerScenario, partyId: string, customerId
       ]), 'party', 'flagged in')
       break
     case 'noah-klein':
-      add(node('related-party', 'RELATED_PARTY', 'Eva Klein · mother', 'relationship', 'verified', [
-        id('related_party_id', 'RP-NK-01', 'PK'), id('customer_id', customerId, 'FK'), value('relationship', 'legal representative'),
+      records.nodes.push(node('related-party', 'RELATED_PARTY', 'Eva Klein · mother', 'relationship', 'verified', [
+        id('related_party_id', 'RP-NK-01', 'PK'), id('customer_id', customerId, 'FK'), id('party_id', 'PTY-EVA-KLEIN', 'FK'), value('relationship', 'legal representative'),
         value('authority_granted_by', 'parental guardianship'), value('what_they_may_do', 'approve and operate youth account'), value('authority_evidence_ref', 'CR-1842'),
-      ]), 'customer', 'has around it')
+      ]))
+      records.nodes.push(node('connected-party', 'PARTY', 'Eva Klein · representative', 'party', 'verified', [
+        id('party_id', 'PTY-EVA-KLEIN', 'PK'), value('party_type', 'person'), value('pep_status', 'not a PEP'), value('first_known_on', '2021-09-14'), value('merged_into_party_id', 'null'),
+      ]))
+      records.nodes.push(node('connected-person', 'PERSON', 'Eva Klein', 'identity', 'verified', [
+        id('party_id', 'PTY-EVA-KLEIN', 'PK/FK'), value('given_name', 'Eva'), value('family_name', 'Klein'), value('birth_date', '1988-06-09'), value('birth_country', 'Austria'), value('is_minor', 'false'),
+      ]))
+      records.edges.push(edge('customer', 'related-party', 'has around it', '1 : 0..*'))
+      records.edges.push(edge('related-party', 'connected-party', 'references', '1 : 1'))
+      records.edges.push(edge('connected-party', 'connected-person', 'if an individual', '1 : 0..1'))
       break
     case 'anna-max':
-      add(node('related-party', 'RELATED_PARTY', 'Max Gruber · joint holder', 'relationship', 'verified', [
-        id('related_party_id', 'RP-AG-02', 'PK'), id('customer_id', customerId, 'FK'), value('relationship', 'joint account holder'),
+      records.nodes.push(node('related-party', 'RELATED_PARTY', 'Max Gruber · joint holder', 'relationship', 'verified', [
+        id('related_party_id', 'RP-AG-02', 'PK'), id('customer_id', customerId, 'FK'), id('party_id', 'PTY-MAX-GRUBER', 'FK'), value('relationship', 'joint account holder'),
         value('what_they_may_do', 'transact independently'), value('valid_from', '2022-04-12'), value('authority_evidence_ref', 'joint mandate JM-2204'),
-      ]), 'customer', 'has around it')
+      ]))
+      records.nodes.push(node('connected-party', 'PARTY', 'Max Gruber · joint holder', 'party', 'verified', [
+        id('party_id', 'PTY-MAX-GRUBER', 'PK'), value('party_type', 'person'), value('pep_status', 'not a PEP'), value('first_known_on', '2022-04-12'), value('merged_into_party_id', 'null'),
+      ]))
+      records.nodes.push(node('connected-person', 'PERSON', 'Max Gruber', 'identity', 'verified', [
+        id('party_id', 'PTY-MAX-GRUBER', 'PK/FK'), value('given_name', 'Max'), value('family_name', 'Gruber'), value('birth_date', '1984-01-28'), value('birth_country', 'Austria'), value('is_minor', 'false'),
+      ]))
+      records.edges.push(edge('customer', 'related-party', 'has around it', '1 : 0..*'))
+      records.edges.push(edge('related-party', 'connected-party', 'references', '1 : 1'))
+      records.edges.push(edge('connected-party', 'connected-person', 'if an individual', '1 : 0..1'))
       break
     case 'elias-petrov':
       add(node('wealth-evidence', 'WEALTH_EVIDENCE', 'Expected €185,000 transfer', 'assurance', 'missing', [
@@ -208,7 +226,7 @@ export function buildCustomerDataModel(customer: CustomerScenario): CustomerData
     edge('party', 'person', 'if an individual', '1 : 0..1'), edge('party', 'address', 'lives at', '1 : 0..*'),
     edge('party', 'nationality', 'holds', '1 : 0..*'), edge('party', 'customer', 'becomes', '1 : 0..*'),
     edge('customer', 'business-relationship', 'holds', '1 : 0..*'), edge('customer', 'cdd-checklist', 'measured by', '1 : 1'),
-    edge('customer', 'risk-rating', 'rated', '1 : 0..*'), edge('business-relationship', 'risk-rating', 'rated', '1 : 0..*'),
+    edge('business-relationship', 'risk-rating', 'rated', '1 : 0..*'),
   ]
 
   const scenario = scenarioRecords(customer, partyId, customerId)
