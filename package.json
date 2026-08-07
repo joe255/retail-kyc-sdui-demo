@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "node --watch --import tsx server/index.ts --dev",
+    "dev": "node --watch-path=server --watch-preserve-output --import tsx server/index.ts --dev",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
